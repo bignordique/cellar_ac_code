@@ -4,5 +4,5 @@
         "reportMissingModuleSource": "none",
         "reportShadowedImports": "none"
     },
-    "circuitpython.board.version": null
+    "circuitpython.board.version": "10.0.3"
 }
