@@ -11,7 +11,7 @@ Multi bit registers
 * Author(s): Scott Shawcroft
 """
 
-__version__ = "1.10.3"
+__version__ = "1.11.1"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_Register.git"
 
 try:

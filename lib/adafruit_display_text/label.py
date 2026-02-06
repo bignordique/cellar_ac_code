@@ -22,7 +22,7 @@ Implementation Notes
 
 """
 
-__version__ = "3.3.2"
+__version__ = "4.0.2"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_Display_Text.git"
 
 

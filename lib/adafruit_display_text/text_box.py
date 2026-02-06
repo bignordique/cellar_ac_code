@@ -23,7 +23,7 @@ Implementation Notes
 
 """
 
-__version__ = "3.3.2"
+__version__ = "4.0.2"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_Display_Text.git"
 
 import displayio
@@ -63,7 +63,12 @@ class TextBox(bitmap_label.Label):
     DYNAMIC_HEIGHT = const(-1)
 
     def __init__(
-        self, font: FontProtocol, width: int, height: int, align=ALIGN_LEFT, **kwargs
+        self,
+        font: FontProtocol,
+        width: int,
+        height: int,
+        align=ALIGN_LEFT,
+        **kwargs,
     ) -> None:
         self._bitmap = None
         self._tilegrid = None
@@ -89,16 +94,24 @@ class TextBox(bitmap_label.Label):
             font,
         )
 
-        super(bitmap_label.Label, self).__init__(font, **kwargs)
+        text_empty = False
+        if not kwargs.get("text", ""):
+            text_empty = True
+            kwargs["text"] = " "
 
-        self._text = "\n".join(self.lines)
-        self._text = self._replace_tabs(self._text)
-        self._original_text = self._text
+        super().__init__(font, **kwargs)
+
+        if text_empty:
+            self._full_text = ""
+
+        self._full_text = "\n".join(self.lines)
+        self._full_text = self._replace_tabs(self._full_text)
+        self._original_text = self._full_text
 
         # call the text updater with all the arguments.
         self._reset_text(
             font=font,
-            text=self._text,
+            text=self._full_text,
             line_spacing=self._line_spacing,
             scale=self.scale,
         )
@@ -238,23 +251,9 @@ class TextBox(bitmap_label.Label):
         self._text = self._replace_tabs(text)
 
         # Check for empty string
-        if (not text) or (
-            text is None
-        ):  # If empty string, just create a zero-sized bounding box and that's it.
-            self._bounding_box = (
-                0,
-                0,
-                0,  # zero width with text == ""
-                0,  # zero height with text == ""
-            )
-            # Clear out any items in the self._local_group Group, in case this is an
-            # update to the bitmap_label
-            for _ in self._local_group:
-                self._local_group.pop(0)
-
-            # Free the bitmap and tilegrid since they are removed
-            self._bitmap = None
-            self._tilegrid = None
+        if (not text) or (text is None):
+            # clear the existing bitmap and keep it
+            self._bitmap.fill(0)
 
         else:  # The text string is not empty, so create the Bitmap and TileGrid and
             # append to the self Group
@@ -383,11 +382,11 @@ class TextBox(bitmap_label.Label):
         self.lines = wrap_text_to_pixels(
             text, self._width - self._padding_left - self._padding_right, self.font
         )
-        self._text = self._replace_tabs(text)
-        self._original_text = self._text
-        self._text = "\n".join(self.lines)
+        self._full_text = self._replace_tabs(text)
+        self._original_text = self._full_text
+        self._full_text = "\n".join(self.lines)
 
-        self._set_text(self._text, self.scale)
+        self._set_text(self._full_text, self.scale)
 
     @property
     def align(self):
