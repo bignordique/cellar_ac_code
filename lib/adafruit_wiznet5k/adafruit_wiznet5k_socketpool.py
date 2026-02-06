@@ -396,30 +396,47 @@ class Socket:
             end of the connection.
         """
         stamp = ticks_ms()
-        while self._status not in {
-            wiznet5k.adafruit_wiznet5k.SNSR_SOCK_SYNRECV,
-            wiznet5k.adafruit_wiznet5k.SNSR_SOCK_ESTABLISHED,
-            wiznet5k.adafruit_wiznet5k.SNSR_SOCK_LISTEN,
-        }:
-            if self._timeout and 0 < self._timeout < ticks_diff(ticks_ms(), stamp) / 1000:
-                raise TimeoutError("Failed to accept connection.")
-            if self._status == wiznet5k.adafruit_wiznet5k.SNSR_SOCK_CLOSE_WAIT:
-                self._disconnect()
-                self.listen()
-            if self._status == wiznet5k.adafruit_wiznet5k.SNSR_SOCK_CLOSED:
-                self.close()
-                self.listen()
+        while True:
+            while self._status not in {
+                wiznet5k.adafruit_wiznet5k.SNSR_SOCK_SYNRECV,
+                wiznet5k.adafruit_wiznet5k.SNSR_SOCK_ESTABLISHED,
+                wiznet5k.adafruit_wiznet5k.SNSR_SOCK_LISTEN,
+            }:
+                if self._timeout and 0 < self._timeout < ticks_diff(ticks_ms(), stamp) / 1000:
+                    raise TimeoutError("Failed to accept connection.")
+                if self._status == wiznet5k.adafruit_wiznet5k.SNSR_SOCK_CLOSE_WAIT:
+                    self._disconnect()
+                    self.listen()
+                if self._status == wiznet5k.adafruit_wiznet5k.SNSR_SOCK_CLOSED:
+                    self.close()
+                    self.listen()
 
-        _, addr = self._interface.socket_accept(self._socknum)
-        current_socknum = self._socknum
-        # Create a new socket object and swap socket nums, so we can continue listening
-        client_sock = Socket(self._socket_pool)
-        self._socknum = client_sock._socknum
-        client_sock._socknum = current_socknum
-        self._bind((None, self._listen_port))
-        self.listen()
-        if self._status != wiznet5k.adafruit_wiznet5k.SNSR_SOCK_LISTEN:
-            raise RuntimeError("Failed to open new listening socket")
+            _, addr = self._interface.socket_accept(self._socknum)
+            # if any of the following conditions are true, we haven't accepted a connection
+            if (
+                addr[0] == "0.0.0.0"
+                or addr[1] == 0
+                or self._interface.socket_status(self._socknum)
+                != wiznet5k.adafruit_wiznet5k.SNSR_SOCK_ESTABLISHED
+            ):
+                if self._timeout == 0:
+                    # non-blocking mode
+                    raise OSError(errno.EAGAIN)
+                if self._timeout and 0 < self._timeout < ticks_diff(ticks_ms(), stamp) / 1000:
+                    # blocking mode with timeout
+                    raise OSError(errno.ETIMEDOUT)
+                # blocking mode / timeout not expired
+                continue
+            current_socknum = self._socknum
+            # Create a new socket object and swap socket nums, so we can continue listening
+            client_sock = Socket(self._socket_pool)
+            self._socknum = client_sock._socknum
+            client_sock._socknum = current_socknum
+            self._bind((None, self._listen_port))
+            self.listen()
+            if self._status != wiznet5k.adafruit_wiznet5k.SNSR_SOCK_LISTEN:
+                raise RuntimeError("Failed to open new listening socket")
+            break
         return client_sock, addr
 
     @_check_socket_closed
@@ -578,7 +595,14 @@ class Socket:
                 self._buffer = self._buffer[bytes_to_read:]
                 # explicitly recheck num_to_read to avoid extra checks
                 continue
-
+            # We need to read the socket status here before seeing if any bytes are available.
+            # Otherwise, we have a bad race condition in the if/elif/... logic below
+            # that can cause recv_into to fail when the other side closes the connection after
+            # sending bytes. The problem is that initially we can have num_avail=0 while the
+            # socket state is not in CLOSED or CLOSED_WAIT. Then after the if but before the elif
+            # that checks the socket state, bytes arrive and the other end closes the connection.
+            # So now bytes are available but we see the CLOSED/CLOSED_WAIT state and ignore them.
+            status_before_getting_available = self._status
             num_avail = self._available()
             if num_avail > 0:
                 last_read_time = ticks_ms()
@@ -593,7 +617,9 @@ class Socket:
             elif num_read > 0:
                 # We got a message, but there are no more bytes to read, so we can stop.
                 break
-            elif self._status in {
+            # See note where we set status_before_getting_available for why we can't just check
+            # _status here
+            elif status_before_getting_available in {
                 wiznet5k.adafruit_wiznet5k.SNSR_SOCK_CLOSED,
                 wiznet5k.adafruit_wiznet5k.SNSR_SOCK_CLOSE_WAIT,
             }:
@@ -605,6 +631,8 @@ class Socket:
                 continue
             if self._timeout == 0:
                 # non-blocking mode
+                if num_read == 0:
+                    raise OSError(errno.EAGAIN)
                 break
             if ticks_diff(ticks_ms(), last_read_time) / 1000 > self._timeout:
                 raise OSError(errno.ETIMEDOUT)
@@ -675,6 +703,8 @@ class Socket:
         Mark the socket closed. Once that happens, all future operations on the socket object
         will fail. The remote end will receive no more data.
         """
+        if self._sock_type == SocketPool.SOCK_STREAM:
+            self._disconnect()
         self._interface.release_socket(self._socknum)
         self._interface.socket_close(self._socknum)
         self._socket_closed = True
