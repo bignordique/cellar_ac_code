@@ -48,15 +48,18 @@ pow_en.direction = digitalio.Direction.OUTPUT
 pow_en.value = False
 
 class ac_fans(ac_base):
-    def __init__(self):
+    def __init__(self, fan_pwm0, fan_pwm1):
 
         self.logger = logging.getLogger(__name__)
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
 
-        self.fan_pwm0 = pwmio.PWMOut(FAN_PWM_PINS[0], frequency = 25000, duty_cycle = 0) 
+        self.fan_pwm0 = fan_pwm0
+        self.fan_pwm1 = fan_pwm1
+
+        #self.fan_pwm0 = pwmio.PWMOut(FAN_PWM_PINS[0], frequency = 25000, duty_cycle = 0) 
         self.fan_tach0 = countio.Counter(FAN_TACH_PINS[0], edge=countio.Edge.RISE, pull=digitalio.Pull.UP)
-        self.fan_pwm1 = pwmio.PWMOut(FAN_PWM_PINS[1], frequency = 25000, duty_cycle = 0) 
+        #self.fan_pwm1 = pwmio.PWMOut(FAN_PWM_PINS[1], frequency = 25000, duty_cycle = 0) 
         self.fan_tach1 = countio.Counter(FAN_TACH_PINS[1], edge=countio.Edge.RISE, pull=digitalio.Pull.UP)
         self.fan_pid0 = PID(Kp=Kp, Ki=Ki, Kd=Kd, setpoint=0, sample_time=None)
         self.fan_pid1 = PID(Kp=Kp, Ki=Ki, Kd=Kd, setpoint=0, sample_time=None)

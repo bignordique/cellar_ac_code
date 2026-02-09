@@ -43,6 +43,10 @@ from simple_pid import PID #type: ignore
 import supervisor
 import os
 import gc
+import pwmio #type: ignore
+
+fan_pwm0 = pwmio.PWMOut(board.A0, frequency = 25000, duty_cycle = 0)
+fan_pwm1 = pwmio.PWMOut(board.A2, frequency = 25000, duty_cycle = 0)
 
 I2C_BATT_MON = 54
 I2C_HTS221_TEMP_HUM = 95 
@@ -161,7 +165,7 @@ if __name__ == "__main__":
         task_list.append(asyncio.create_task(network.fetch_ntp()))
         task_list.append(asyncio.create_task(network.post_temp()))  
 
-    fan = ac_fans()
+    fan = ac_fans(fan_pwm0, fan_pwm1)
     logging.getLogger('ac_fans').setLevel(logging.DEBUG)
     task_list.append(asyncio.create_task(fan.fan_loop()))
 
