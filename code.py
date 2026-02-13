@@ -44,6 +44,7 @@ import supervisor
 import os
 import gc
 import pwmio #type: ignore
+from ac_non_volatile import ac_non_volatile
 
 fan_pwm0 = pwmio.PWMOut(board.A0, frequency = 25000, duty_cycle = 0)
 fan_pwm1 = pwmio.PWMOut(board.A2, frequency = 25000, duty_cycle = 0)
@@ -153,6 +154,7 @@ if __name__ == "__main__":
         logging.getLogger('ac_display').setLevel(logging.INFO)
         logging.getLogger('touch').setLevel(logging.INFO)
         logging.getLogger('lite').setLevel(logging.INFO)
+        logging.getLogger('ac_non_volatile').setLevel(logging.DEBUG)
         task_list.append(asyncio.create_task(display.lite_loop()))
         if display.ft is not None:
             task_list.append(asyncio.create_task(display.get_touch()))

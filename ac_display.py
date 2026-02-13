@@ -16,6 +16,7 @@ Coords = namedtuple("Point", "x y")
 
 from ac_base import ac_base
 from ac_base import CustomStreamHandler
+from ac_non_volatile import ac_non_volatile
 
 import fourwire
 import adafruit_ili9341
@@ -26,6 +27,7 @@ import pwmio
 BUTTON_HEIGHT = 60
 BUTTON_MARGIN = 8
 BUTTON_WIDTH = int((240 - 3 * BUTTON_MARGIN) / 2)
+BUTTON_WIDTH_3W= int((240 - 4 * BUTTON_MARGIN) / 3)
 BLACK = 0x0
 ORANGE = 0xFF8800
 WHITE = 0xFFFFFF
@@ -33,15 +35,18 @@ GRAY = 0x888888
 RED = 0xFF0000
 GREEN = 0x00FF00
 MAGENTA = 0xFF00FF
+BLUE = 0x0000FF
 
 TEMPS_Y_EXTENT = ac_base.TEMPS_Y_SIZE - 2
 TEMPS_Y_MIDLINE = ac_base.DISPLAY_Y_SIZE - ac_base.TEMPS_Y_SIZE//2 + 1
 TEMPS_Y_TOP = ac_base.DISPLAY_Y_SIZE - ac_base.TEMPS_Y_SIZE
 
-class ac_display(ac_base):
+ARIAL_BOLD_24 = bitmap_font.load_font("/fonts/Arial-Bold-24.bdf")
+ARIAL_12 = bitmap_font.load_font("/fonts/Arial12.bdf")
+
+class ac_display(ac_base, ac_non_volatile):
 
     def __init__(self, i2c, self_test)  -> None:
-        super().__init__()
         self.i2c = i2c
         self.self_test = self_test
 
@@ -49,6 +54,11 @@ class ac_display(ac_base):
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
 
+        nv_logger = logging.getLogger("ac_non_volatile")
+        nv_logger.addHandler(CustomStreamHandler()) 
+        nv_logger.setLevel(logging.INFO)  
+        ac_non_volatile.__init__(self, i2c, nv_logger) 
+  
         self.touch_logger = logging.getLogger("touch")
         self.touch_logger.addHandler(CustomStreamHandler())
         self.touch_logger.setLevel(logging.INFO)
@@ -107,7 +117,6 @@ class ac_display(ac_base):
         self.group.append(temps_sprite)
 
 # Load the font
-        self.font = bitmap_font.load_font("/fonts/Arial-Bold-24.bdf")
         self.buttons = []
 
         """box_border = RoundRect(20, 8, 200, 35, r=10, fill=WHITE, outline=BLACK, stroke=2)
@@ -122,22 +131,30 @@ class ac_display(ac_base):
         mid_line = Line(0, TEMPS_Y_MIDLINE, ac_base.DISPLAY_X_SIZE-1, TEMPS_Y_MIDLINE, WHITE)
         self.set_temp_display = Label(terminalio.FONT, x=8, y=TEMPS_Y_MIDLINE, color=WHITE, background_color=BLACK)
         self.set_hi_temp_display = Label(terminalio.FONT, x=8, y=TEMPS_Y_TOP, color=WHITE, background_color=BLACK)
+        auto_on_pos = self.button_grid_3w(0,2)
+        self.auto_on_label = Label(terminalio.FONT, x=auto_on_pos.x + 10, y=auto_on_pos.y+BUTTON_HEIGHT//2, color=WHITE)
+        self.auto_on_label.text = "AUTO_ON"
 
-        pos = self.button_grid(0, 1)
-        set_point_box = RoundRect(pos.x, pos.y, BUTTON_WIDTH, BUTTON_HEIGHT, r=10, fill=WHITE, outline=BLACK, stroke=2)
-        self.set_point_label = Label(self.font, x=int(BUTTON_MARGIN + BUTTON_WIDTH*1.5 - 5), 
+        pos = self.button_grid_3w(0, 1)
+        set_point_box = RoundRect(pos.x, pos.y, BUTTON_WIDTH_3W, BUTTON_HEIGHT, r=10, fill=WHITE, outline=BLACK, stroke=2)
+        self.set_point_label = Label(ARIAL_BOLD_24, x=int(BUTTON_MARGIN * 2 + BUTTON_WIDTH_3W * 1.25), 
                                                 y=10 + BUTTON_HEIGHT//2 + 1 * BUTTON_MARGIN, 
                                                 text="", color=ORANGE)
+        
+        """pos = self.button_grid_3w(0, 2)
+        auto_on_box = RoundRect(pos.x, pos.y, BUTTON_WIDTH_3W, BUTTON_HEIGHT, r=10, fill=WHITE, outline=BLACK, stroke=2)
+        self.auto_on_label = Label(self.font, x=int(BUTTON_MARGIN * 3 + BUTTON_WIDTH_3W * 2 - 5), 
+                                                y=10 + BUTTON_HEIGHT//2 + 1 * BUTTON_MARGIN, 
+                                                text="", color=ORANGE)"""
 
-        self.off_button = self.add_button(0, 0, "ON", color=GREEN)
-        self.add_button(1, 0, "UP")
-        self.add_button(1, 1, "DOWN")
+        self.off_button = self.add_button_3w(0, 0, "ON", color=GREEN, name="off_on")
+        self.auto_on_button = self.add_button_3w(0, 2, "AUTOON", color=0x0, font=terminalio.FONT, outline_color=WHITE, name="auto_on")
+        self.add_button(1, 0, "UP", name="up")
+        self.add_button(1, 1, "DOWN", name="down")
 
         for b in self.buttons:
             self.group.append(b)
 
-        #self.group.append(box_border)
-        #self.group.append(box_display)
         self.group.append(self.temp_rh_display)
         self.group.append(self.cpu_temp_display)
         self.group.append(self.time_display)
@@ -147,6 +164,7 @@ class ac_display(ac_base):
         self.group.append(mid_line)
         self.group.append(self.set_temp_display)
         self.group.append(self.set_hi_temp_display)
+        self.group.append(self.auto_on_label)
 
         self.point = None
 
@@ -156,12 +174,27 @@ class ac_display(ac_base):
                       BUTTON_MARGIN * (row + 1) + BUTTON_HEIGHT * row + 10)
 
 # row/col definition backwards?
-    def add_button(self, row, col, label, width=1, color=WHITE, text_color=BLACK):
+    def add_button(self, row, col, label, width=1, color=WHITE, text_color=BLACK, outline_color=BLACK, font=ARIAL_BOLD_24, name=None):
         pos = self.button_grid(row, col)
         new_button = Button(x=pos.x, y=pos.y,
                             width=BUTTON_WIDTH * width + BUTTON_MARGIN * (width - 1),
-                            height=BUTTON_HEIGHT, label=label, label_font=self.font,
-                            label_color=text_color, fill_color=color, style=Button.ROUNDRECT, label_scale=1)
+                            height=BUTTON_HEIGHT, label=label, label_font=font,
+                            outline_color = outline_color, label_color=text_color, name=name,
+                            fill_color=color, style=Button.ROUNDRECT, label_scale=1)
+        self.buttons.append(new_button)
+        return new_button
+    
+    def button_grid_3w(self, row, col):
+        return Coords(BUTTON_MARGIN * (col + 1) + BUTTON_WIDTH_3W * col + 0,
+                      BUTTON_MARGIN * (row + 1) + BUTTON_HEIGHT * row + 10)
+    
+    def add_button_3w(self, row, col, label, width=1, color=WHITE, text_color=BLACK, outline_color=BLACK, font=ARIAL_BOLD_24, name=None):
+        pos = self.button_grid_3w(row, col)
+        new_button = Button(x=pos.x, y=pos.y,
+                            width =BUTTON_WIDTH_3W * width + BUTTON_MARGIN * (width - 1),
+                            height=BUTTON_HEIGHT, label=label, label_font=font,
+                            outline_color = outline_color, label_color=text_color, fill_color=color, name=name,
+                            style=Button.ROUNDRECT, label_scale=1)
         self.buttons.append(new_button)
         return new_button
 
@@ -193,36 +226,53 @@ class ac_display(ac_base):
             for _, b in enumerate(self.buttons):
                 if b.contains(self.point):
                     b.selected = True
-                    button = b.label
+                    button = b.name
             
-                    if button == "OFF" or button == "ON":
-                        b.label = ""
+#                    if button == "off_on":
+#                        b.label = ""
 
                     time.sleep(0.3)  #don't release the thread
                     b.selected = False
 
-                    if button == "OFF":
-                        b.label = "ON"
-                        b.fill_color = GREEN
-                        ac_base.ac_enable = False
-                        self.set_point_label.text = ""
-                    if button == "ON":
-                        b.label = "OFF"
-                        b.fill_color = RED
-                        ac_base.ac_enable = True
-                        self.set_point_label.text = str(self.temp_set_point)
+                    if button == "off_on":
 
-                    if button == "DOWN" and ac_base.ac_enable:
+                        if b.label == "ON":
+                            b.label = "OFF"
+                            b.fill_color = RED
+                            ac_base.ac_enable = True
+                            self.set_point_label.text = str(self.temp_set_point)
+                        else:
+                            b.label = "ON"
+                            b.fill_color = GREEN
+                            ac_base.ac_enable = False
+                            self.set_point_label.text = ""
+
+                    if button == "down" and ac_base.ac_enable:
                         if ac_base.temp_set_point > ac_base.MIN_TEMP:
                             ac_base.temp_set_point -= 1
                         self.set_point_label.text = str(ac_base.temp_set_point)
                         self.gen_temps_plot(False)
 
-                    if button == "UP" and ac_base.ac_enable:
+                    if button == "up" and ac_base.ac_enable:
                         if ac_base.temp_set_point < ac_base.MAX_TEMP:
                             ac_base.temp_set_point += 1
                         self.set_point_label.text = str(ac_base.temp_set_point)
                         self.gen_temps_plot(False)
+
+                    if button == "auto_on" and ac_base.ac_enable:
+                        self.write_nv("auto_on", [1])
+                        self.read_nv("md5")
+                        #self.write_nv("set_point", [80])
+                        #self.write_nv("md5", [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0])
+                        #read_it = self.read_nv("md5")
+                        #self.logger.info(read_it)
+                        #read_it = self.read_nv("set_point")
+                        #self.logger.info(int.from_bytes(read_it))
+                        #read_it = self.read_nv("auto_on")
+                        #self.logger.info(read_it)
+
+
+                        pass
 
             await asyncio.sleep(0.1)
 
