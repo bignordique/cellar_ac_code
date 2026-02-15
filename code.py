@@ -30,7 +30,7 @@ import asyncio
 import adafruit_logging as logging
 import busio
 import board
-from ac_display import ac_display
+from ac_display import BLACK, ac_display
 from ac_network import ac_network
 from ac_temp import ac_temp
 from ac_base import ac_base
@@ -84,6 +84,20 @@ class ac_master_cylinder(ac_base):
         if SELF_TEST_MODE:
             logger.info(f'{SELF_TEST_MODE=}')
         last_temps_period = None
+        auto_on_status = display.read_nv("auto_on")
+        if auto_on_status == None:
+            logger.info(f'auto_on status is None.  No EEPROM. defaulting to off.')
+        elif auto_on_status == False:
+            logger.warning(f'auto_on status is False.  EEPROM hash failure. defaulting to off.')
+        elif int.from_bytes(auto_on_status, "big") == 0: 
+            set_point = display.read_nv("set_point") 
+            if set_point == None or set_point == False: 
+                logger.error(f'set_point is {set_point}.  Missing EEPROM or hash failure. defaulting off.')
+            else:
+                ac_base.temp_set_point = int.from_bytes(set_point, "big")
+                display.on_off_button_press("set_on")   
+                display.auto_on_button_press("button_on")
+
         while True:
 
             if loop_counter % loop_secs == 0: 
@@ -95,7 +109,7 @@ class ac_master_cylinder(ac_base):
                 if minutes % TEMPS_PERIOD == 0:
                     if last_temps_period != minutes or last_temps_period is None:
                         last_temps_period = minutes
-                        ac_base.temps_line[ac_base.temps_index] = ac_base.temp
+                        display.temps_line[display.temps_index] = display.temp
                         display.gen_temps_plot(True)
 
                 ac_base.temp_err = ac_base.temp_set_point - ac_base.temp 

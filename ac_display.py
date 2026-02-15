@@ -37,9 +37,14 @@ GREEN = 0x00FF00
 MAGENTA = 0xFF00FF
 BLUE = 0x0000FF
 
-TEMPS_Y_EXTENT = ac_base.TEMPS_Y_SIZE - 2
-TEMPS_Y_MIDLINE = ac_base.DISPLAY_Y_SIZE - ac_base.TEMPS_Y_SIZE//2 + 1
-TEMPS_Y_TOP = ac_base.DISPLAY_Y_SIZE - ac_base.TEMPS_Y_SIZE
+DISPLAY_X_SIZE = 240
+DISPLAY_Y_SIZE = 320
+TEMPS_X_SIZE = DISPLAY_X_SIZE
+TEMPS_Y_SIZE = DISPLAY_Y_SIZE//3 + 1
+
+TEMPS_Y_EXTENT = TEMPS_Y_SIZE - 2
+TEMPS_Y_MIDLINE = DISPLAY_Y_SIZE - TEMPS_Y_SIZE//2 + 1
+TEMPS_Y_TOP = DISPLAY_Y_SIZE - TEMPS_Y_SIZE
 
 ARIAL_BOLD_24 = bitmap_font.load_font("/fonts/Arial-Bold-24.bdf")
 ARIAL_12 = bitmap_font.load_font("/fonts/Arial12.bdf")
@@ -67,6 +72,9 @@ class ac_display(ac_base, ac_non_volatile):
         self.lite_logger.addHandler(CustomStreamHandler())
         self.lite_logger.setLevel(logging.INFO)
 
+        self.temps_line = [None] * TEMPS_X_SIZE
+        self.temps_index = 0
+
         self.disable_blink_count = 0
 
         self.lite = pwmio.PWMOut(board.D13, frequency = 1000, duty_cycle = 65535)
@@ -78,8 +86,8 @@ class ac_display(ac_base, ac_non_volatile):
         self.initialized = False
         try:
             display_bus = fourwire.FourWire(board.SPI(),  command = board.A4, chip_select = board.A5)
-            self.display = adafruit_ili9341.ILI9341(display_bus, rotation=90, width=ac_base.DISPLAY_X_SIZE, \
-                                                    height=ac_base.DISPLAY_Y_SIZE)
+            self.display = adafruit_ili9341.ILI9341(display_bus, rotation=90, width=DISPLAY_X_SIZE, \
+                                                    height=DISPLAY_Y_SIZE)
             self.logger.info(f'ILI9341 connected through FourWire.')
             self.initialized = True
         except Exception as e:
@@ -99,7 +107,7 @@ class ac_display(ac_base, ac_non_volatile):
         self.display.root_group = self.group
 
 # Make a background color fill
-        color_bitmap = displayio.Bitmap(ac_base.DISPLAY_X_SIZE, ac_base.DISPLAY_Y_SIZE, 1)
+        color_bitmap = displayio.Bitmap(DISPLAY_X_SIZE, DISPLAY_Y_SIZE-TEMPS_Y_SIZE, 1)
         color_palette = displayio.Palette(1)
         color_palette[0] = GRAY
         bg_sprite = displayio.TileGrid(color_bitmap,
@@ -107,33 +115,30 @@ class ac_display(ac_base, ac_non_volatile):
                                        x=0, y=0)
         self.group.append(bg_sprite)
 
-        self.temps_bitmap = displayio.Bitmap(ac_base.TEMPS_X_SIZE, ac_base.TEMPS_Y_SIZE, 2)
+        self.temps_bitmap = displayio.Bitmap(TEMPS_X_SIZE, TEMPS_Y_SIZE, 2)
         temps_palette = displayio.Palette(2)
         temps_palette[0] = MAGENTA
         temps_palette[1] = GREEN
         temps_sprite = displayio.TileGrid(self.temps_bitmap,
                                           pixel_shader = temps_palette,
-                                          x=0, y=ac_base.DISPLAY_Y_SIZE - ac_base.TEMPS_Y_SIZE)
+                                          x=0, y=DISPLAY_Y_SIZE - TEMPS_Y_SIZE)
         self.group.append(temps_sprite)
 
 # Load the font
         self.buttons = []
 
-        """box_border = RoundRect(20, 8, 200, 35, r=10, fill=WHITE, outline=BLACK, stroke=2)
-        box_display = Label(self.font, x=100, y=8, text="XYZZY", color=ORANGE)
-        box_display.y = 25"""
 
         first_line = 2 * BUTTON_HEIGHT + 3*BUTTON_MARGIN + 10
         self.time_display = Label(terminalio.FONT, x=8, y=first_line, color=WHITE)
         self.temp_rh_display = Label(terminalio.FONT, x=8, y=first_line+1*10, color=WHITE)
         self.cpu_temp_display = Label(terminalio.FONT, x=8, y=first_line+2*10, color=WHITE)
         self.rpm_display = Label(terminalio.FONT, x=8, y=first_line+3*10, color=WHITE)
-        mid_line = Line(0, TEMPS_Y_MIDLINE, ac_base.DISPLAY_X_SIZE-1, TEMPS_Y_MIDLINE, WHITE)
+        mid_line = Line(0, TEMPS_Y_MIDLINE, DISPLAY_X_SIZE-1, TEMPS_Y_MIDLINE, WHITE)
         self.set_temp_display = Label(terminalio.FONT, x=8, y=TEMPS_Y_MIDLINE, color=WHITE, background_color=BLACK)
         self.set_hi_temp_display = Label(terminalio.FONT, x=8, y=TEMPS_Y_TOP, color=WHITE, background_color=BLACK)
         auto_on_pos = self.button_grid_3w(0,2)
-        self.auto_on_label = Label(terminalio.FONT, x=auto_on_pos.x + 10, y=auto_on_pos.y+BUTTON_HEIGHT//2, color=WHITE)
-        self.auto_on_label.text = "AUTO_ON"
+        self.auto_on_label = Label(terminalio.FONT, x=auto_on_pos.x + 17, y=auto_on_pos.y+BUTTON_HEIGHT//2+17, color=WHITE)
+        self.auto_on_label.text = "IS_OFF"
 
         pos = self.button_grid_3w(0, 1)
         set_point_box = RoundRect(pos.x, pos.y, BUTTON_WIDTH_3W, BUTTON_HEIGHT, r=10, fill=WHITE, outline=BLACK, stroke=2)
@@ -141,14 +146,9 @@ class ac_display(ac_base, ac_non_volatile):
                                                 y=10 + BUTTON_HEIGHT//2 + 1 * BUTTON_MARGIN, 
                                                 text="", color=ORANGE)
         
-        """pos = self.button_grid_3w(0, 2)
-        auto_on_box = RoundRect(pos.x, pos.y, BUTTON_WIDTH_3W, BUTTON_HEIGHT, r=10, fill=WHITE, outline=BLACK, stroke=2)
-        self.auto_on_label = Label(self.font, x=int(BUTTON_MARGIN * 3 + BUTTON_WIDTH_3W * 2 - 5), 
-                                                y=10 + BUTTON_HEIGHT//2 + 1 * BUTTON_MARGIN, 
-                                                text="", color=ORANGE)"""
-
         self.off_button = self.add_button_3w(0, 0, "ON", color=GREEN, name="off_on")
-        self.auto_on_button = self.add_button_3w(0, 2, "AUTOON", color=0x0, font=terminalio.FONT, outline_color=WHITE, name="auto_on")
+        self.auto_on_button = self.add_button_3w(0, 2, "AUTO_ON", color=BLACK, font=terminalio.FONT, text_color=WHITE,
+                                                 outline_color=WHITE, name="auto_on")
         self.add_button(1, 0, "UP", name="up")
         self.add_button(1, 1, "DOWN", name="down")
 
@@ -197,6 +197,7 @@ class ac_display(ac_base, ac_non_volatile):
                             style=Button.ROUNDRECT, label_scale=1)
         self.buttons.append(new_button)
         return new_button
+    
 
     async def get_touch(self):
 
@@ -235,47 +236,68 @@ class ac_display(ac_base, ac_non_volatile):
                     b.selected = False
 
                     if button == "off_on":
-
-                        if b.label == "ON":
-                            b.label = "OFF"
-                            b.fill_color = RED
-                            ac_base.ac_enable = True
-                            self.set_point_label.text = str(self.temp_set_point)
-                        else:
-                            b.label = "ON"
-                            b.fill_color = GREEN
-                            ac_base.ac_enable = False
-                            self.set_point_label.text = ""
+                        self.on_off_button_press("toggle")
 
                     if button == "down" and ac_base.ac_enable:
                         if ac_base.temp_set_point > ac_base.MIN_TEMP:
                             ac_base.temp_set_point -= 1
+                            self.write_nv("set_point", [ac_base.temp_set_point])
                         self.set_point_label.text = str(ac_base.temp_set_point)
                         self.gen_temps_plot(False)
 
                     if button == "up" and ac_base.ac_enable:
                         if ac_base.temp_set_point < ac_base.MAX_TEMP:
                             ac_base.temp_set_point += 1
+                            self.write_nv("set_point", [ac_base.temp_set_point])
                         self.set_point_label.text = str(ac_base.temp_set_point)
                         self.gen_temps_plot(False)
 
                     if button == "auto_on" and ac_base.ac_enable:
-                        self.write_nv("auto_on", [1])
-                        self.read_nv("md5")
-                        #self.write_nv("set_point", [80])
-                        #self.write_nv("md5", [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0])
-                        #read_it = self.read_nv("md5")
-                        #self.logger.info(read_it)
-                        #read_it = self.read_nv("set_point")
-                        #self.logger.info(int.from_bytes(read_it))
-                        #read_it = self.read_nv("auto_on")
-                        #self.logger.info(read_it)
-
-
-                        pass
+                        self.auto_on_button_press("toggle")
 
             await asyncio.sleep(0.1)
 
+    def on_off_button_press(self, action):
+            if action == "set_on":
+                self.off_button.label = "OFF"
+                self.off_button.fill_color = RED
+                ac_base.ac_enable = True
+                self.set_point_label.text = str(ac_base.temp_set_point)
+            elif action == "toggle":
+                if self.off_button.label == "ON":
+                    self.off_button.label = "OFF"
+                    self.off_button.fill_color = RED
+                    ac_base.ac_enable = True
+                    self.set_point_label.text = str(ac_base.temp_set_point)
+                else:
+                    self.off_button.label = "ON"
+                    self.off_button.fill_color = GREEN
+                    ac_base.ac_enable = False
+                    self.set_point_label.text = ""
+
+    def auto_on_button_press(self, action):
+            if action == "button_on":
+                self.auto_on = True
+                self.auto_on_button.fill_color = BLUE
+                self.auto_on_label.text = "IS_ON"
+            elif action == "toggle":
+                if self.auto_on_label.text == "IS_OFF":
+                    if (self.write_nv("set_point" , [ac_base.temp_set_point]) == True and
+                          self.write_nv("auto_on", [0]) == True):
+                        self.logger.info(f'Auto_on toggled on with set_point {ac_base.temp_set_point}.')
+                        self.auto_on_label.text = "IS_ON"
+                        self.auto_on_button.fill_color = BLUE
+                    else:
+                        self.logger.error(f'Failed to write set_point to nv during auto_on toggle.')
+                else:
+                    if self.write_nv("auto_on", [1]) == True:
+                        self.logger.info(f'Auto_on toggled off.')
+                        self.auto_on_label.text = "IS_OFF"
+                        self.auto_on_button.fill_color = BLACK
+                    else:
+                        self.logger.error(f'Failed to write auto_on flag to nv during auto_on toggle.')
+
+        
     async def lite_loop(self):
         
         self.lite_logger.info(f'Starting lite loop:')
@@ -297,10 +319,10 @@ class ac_display(ac_base, ac_non_volatile):
     def gen_temps_plot(self, inc_temps_index):
         max_temp = ac_base.temp
         min_temp = ac_base.temp
-        for ii in range(0,ac_base.TEMPS_X_SIZE):
-            index = (ac_base.temps_index + ii) % ac_base.TEMPS_X_SIZE
-            max_temp = max(max_temp, ac_base.temps_line[index]) if ac_base.temps_line[index] is not None else max_temp
-            min_temp = min(min_temp, ac_base.temps_line[index]) if ac_base.temps_line[index] is not None else min_temp
+        for ii in range(0, TEMPS_X_SIZE):
+            index = (self.temps_index + ii) % TEMPS_X_SIZE
+            max_temp = max(max_temp, self.temps_line[index]) if self.temps_line[index] is not None else max_temp
+            min_temp = min(min_temp, self.temps_line[index]) if self.temps_line[index] is not None else min_temp
         
         midtemp = (min_temp + max_temp) /2
 
@@ -310,15 +332,15 @@ class ac_display(ac_base, ac_non_volatile):
         else:
             dots_per_degree = 0
 
-        bitmaptools.fill_region(self.temps_bitmap, 0, 0, ac_base.TEMPS_X_SIZE, ac_base.TEMPS_Y_SIZE, 0)
+        bitmaptools.fill_region(self.temps_bitmap, 0, 0, TEMPS_X_SIZE, TEMPS_Y_SIZE, 0)
 
-        for ii in range(0 , ac_base.TEMPS_X_SIZE-1):
-            index = (ac_base.temps_index - ii)  if ac_base.temps_index >= ii else 239 - ii + ac_base.temps_index
-            reverse_x_index = (ac_base.TEMPS_X_SIZE - 1) - ii
-            y_point = ac_base.temps_line[index]
+        for ii in range(0 , TEMPS_X_SIZE-1):
+            index = (self.temps_index - ii)  if self.temps_index >= ii else 239 - ii + self.temps_index
+            reverse_x_index = (TEMPS_X_SIZE - 1) - ii
+            y_point = self.temps_line[index]
 
             if y_point is not None and min_temp is not None:
-                y_scaled = ac_base.TEMPS_Y_SIZE//2 - 1  - int((y_point - midtemp) * dots_per_degree) + 1
+                y_scaled = TEMPS_Y_SIZE//2 - 1  - int((y_point - midtemp) * dots_per_degree) + 1
                 if y_scaled < 1 or y_scaled > 105 :
                     print (y_scaled)
                 else:
@@ -330,7 +352,7 @@ class ac_display(ac_base, ac_non_volatile):
         self.set_hi_temp_display.text = f'{max_temp:.2f}'
 
         if inc_temps_index:
-            ac_base.temps_index = (ac_base.temps_index + 1) % ac_base.TEMPS_X_SIZE
+            self.temps_index = (self.temps_index + 1) % TEMPS_X_SIZE
 
 if __name__ == "__main__":
     import busio

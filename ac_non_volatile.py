@@ -11,7 +11,6 @@ NV_CAPACITY = 4096
 HASH_LENGTH = 32
 HASH_SPOT = NV_CAPACITY - HASH_LENGTH
     
-
 MAP = {"auto_on": (0, 1),
        "set_point": (1, 2),
        "md5": (HASH_SPOT, NV_CAPACITY)}
@@ -23,6 +22,7 @@ class ac_non_volatile(ac_base):
 
         try:
             self.nv = adafruit_24lc32.EEPROM_I2C(i2c)
+            self.nv_logger.info(f"EEPROM found.")  
         except Exception as e:
             self.nv_logger.error(f"Failed to initialize EEPROM: {e}")  
             self.nv = None
@@ -32,44 +32,42 @@ class ac_non_volatile(ac_base):
         if self.nv is None:
             return None
         if self.check_hash() == False:
-            return None
-        idx0, idx1, length = self.get_index(label)
-        self.nv_logger.debug(f'{idx0} {idx1}')
+            return False
+        idx0, idx1 = self.get_index(label)
         return(self.fetch_nv(idx0, idx1))
 
     def write_nv(self, label, data):
         if self.nv is None:
             return None
-        idx0, idx1, length = self.get_index(label)
-        if length < len(data):
-            self.nv_logger.error(f'Data length {len(data)} exceeds allocated space {length} for label {label}.')
+        idx0, idx1 = self.get_index(label)
+        if idx1 - idx0 < len(data):
+            self.nv_logger.error(f'Data length {len(data)} exceeds allocated space {idx1-idx0} for label {label}.')
             return False
         if self.post_nv(idx0, idx1, data) == False:
             self.nv_logger.error(f'Failed to write {data} to label {label}.')
             return False
-        """if label == "set_point":
-            idx0, idx1, length = self.get_index("auto_on")
-            if self.post_nv(idx0, idx1, b'\X00') == False:
-                self.logger.error(f'Failed to set auto_on flag for set_point update.')
-                return False"""
-        idx0, idx1, length = self.get_index("md5")
+        idx0, idx1 = self.get_index("md5")
         if self.post_nv(idx0, idx1, self.compute_hash()) == False:
             self.nv_logger.error(f'Failed to update hash after writing {data} to label {label}.')
             return False 
         return True
 
     def get_index(self, label):
-        idx0 = MAP[label][0]
-        idx1 = MAP[label][1]
-        self.nv_logger.debug(f'get_index for {label} returns {idx0}, {idx1}, length {idx1-idx0}')    
-        return idx0, idx1, idx1-idx0
+        if label in MAP:
+            idx0 = MAP[label][0]
+            idx1 = MAP[label][1]
+            return idx0, idx1
+        else:
+            # Program error.  Fatal.   But post a hint.
+            self.nv_logger.critical(f'label: {label} not in MAP.')
+            return None, None
        
     def compute_hash(self):
         hash = hashlib.md5()
         for ii in MAP:
-            idx0, idx1, length = self.get_index(ii)
+            idx0, idx1 = self.get_index(ii)
             if ii != "md5":
-                self.nv_logger.debug(f'Hashing label {ii} data {self.fetch_nv(idx0, idx1)}')
+                self.nv_logger.debug(f'Adding label {ii} data {int.from_bytes(self.fetch_nv(idx0, idx1), "big")} to hash.')
                 data = self.fetch_nv(idx0, idx1)
                 if data == False:
                     return False
@@ -78,10 +76,10 @@ class ac_non_volatile(ac_base):
         return hash.hexdigest().encode('utf-8')
     
     def check_hash(self):
-        idx0, idx1, length = self.get_index("md5")
+        idx0, idx1 = self.get_index("md5")
         stored_hash = self.fetch_nv(idx0, idx1)
         computed_hash = self.compute_hash()
-        if stored_hash != computed_hash and stored_hash and computed_hash:
+        if stored_hash != computed_hash or not stored_hash or not computed_hash:
             self.nv_logger.error(f'Hash mismatch: stored {stored_hash} computed {computed_hash}.')           
             return False
         return True

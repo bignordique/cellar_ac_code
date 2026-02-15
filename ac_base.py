@@ -7,12 +7,6 @@ class ac_base():
     SELF_TEST_MODE= os.getenv("SELF_TEST_MODE", "false").lower() == "true"
     MAX_TEMP = int(os.getenv("MAX_TEMP", "75"))
     MIN_TEMP = int(os.getenv("MIN_TEMP", "60"))
-    DISPLAY_X_SIZE = 240
-    DISPLAY_Y_SIZE = 320
-    TEMPS_X_SIZE = DISPLAY_X_SIZE
-    TEMPS_Y_SIZE = DISPLAY_Y_SIZE//3 + 1
-    temps_line = [None] * TEMPS_X_SIZE
-    temps_index = 0
     if SELF_TEST_MODE : temp_set_point = 70
     else: temp_set_point = MAX_TEMP
     ac_enable = False
