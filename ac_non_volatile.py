@@ -5,8 +5,6 @@ import adafruit_logging as logging
 import os
 import adafruit_hashlib as hashlib
 
-I2C_24LC32 = os.getenv("I2C_24LC32", 80)
-
 NV_CAPACITY = 4096
 HASH_LENGTH = 32
 HASH_SPOT = NV_CAPACITY - HASH_LENGTH
@@ -15,10 +13,9 @@ MAP = {"auto_on": (0, 1),
        "set_point": (1, 2),
        "md5": (HASH_SPOT, NV_CAPACITY)}
 
-class ac_non_volatile(ac_base):
+class AcNonVolatile(ac_base):
 
-    def __init__(self, i2c, logger):
-        self.nv_logger = logger
+    def __init__(self, i2c):
 
         try:
             self.nv = adafruit_24lc32.EEPROM_I2C(i2c)
@@ -26,9 +23,10 @@ class ac_non_volatile(ac_base):
         except Exception as e:
             self.nv_logger.error(f"Failed to initialize EEPROM: {e}")  
             self.nv = None
+        
 
     def read_nv(self, label):
-        self.nv_logger.debug(f"Attempting to read NV for label {label}.")
+        self.nv_logger.debug(f"Read NV for label {label}.")
         if self.nv is None:
             return None
         if self.check_hash() == False:
@@ -37,6 +35,7 @@ class ac_non_volatile(ac_base):
         return(self.fetch_nv(idx0, idx1))
 
     def write_nv(self, label, data):
+        self.nv_logger.debug(f"Writing {data[0]} to {label}.") 
         if self.nv is None:
             return None
         idx0, idx1 = self.get_index(label)

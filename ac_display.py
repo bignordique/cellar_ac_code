@@ -13,15 +13,14 @@ import bitmaptools
 import adafruit_logging as logging
 import asyncio
 Coords = namedtuple("Point", "x y")
-
 from ac_base import ac_base
 from ac_base import CustomStreamHandler
-from ac_non_volatile import ac_non_volatile
-
+from ac_non_volatile import AcNonVolatile
 import fourwire
 import adafruit_ili9341
 import adafruit_focaltouch
 import pwmio
+import math
 
 # Settings
 BUTTON_HEIGHT = 60
@@ -49,7 +48,7 @@ TEMPS_Y_TOP = DISPLAY_Y_SIZE - TEMPS_Y_SIZE
 ARIAL_BOLD_24 = bitmap_font.load_font("/fonts/Arial-Bold-24.bdf")
 ARIAL_12 = bitmap_font.load_font("/fonts/Arial12.bdf")
 
-class ac_display(ac_base, ac_non_volatile):
+class AcDisplay(ac_base, AcNonVolatile):
 
     def __init__(self, i2c, self_test)  -> None:
         self.i2c = i2c
@@ -59,10 +58,10 @@ class ac_display(ac_base, ac_non_volatile):
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
 
-        nv_logger = logging.getLogger("ac_non_volatile")
-        nv_logger.addHandler(CustomStreamHandler()) 
-        nv_logger.setLevel(logging.INFO)  
-        ac_non_volatile.__init__(self, i2c, nv_logger) 
+        self.nv_logger = logging.getLogger("ac_non_volatile")
+        self.nv_logger.addHandler(CustomStreamHandler()) 
+        self.nv_logger.setLevel(logging.INFO) 
+        AcNonVolatile.__init__(self, i2c) 
   
         self.touch_logger = logging.getLogger("touch")
         self.touch_logger.addHandler(CustomStreamHandler())
@@ -115,10 +114,12 @@ class ac_display(ac_base, ac_non_volatile):
                                        x=0, y=0)
         self.group.append(bg_sprite)
 
-        self.temps_bitmap = displayio.Bitmap(TEMPS_X_SIZE, TEMPS_Y_SIZE, 2)
-        temps_palette = displayio.Palette(2)
+        self.temps_bg = 0
+        self.temps_bitmap = displayio.Bitmap(TEMPS_X_SIZE, TEMPS_Y_SIZE, 3)
+        temps_palette = displayio.Palette(3)
         temps_palette[0] = MAGENTA
-        temps_palette[1] = GREEN
+        temps_palette[1] = RED
+        temps_palette[2] = GREEN
         temps_sprite = displayio.TileGrid(self.temps_bitmap,
                                           pixel_shader = temps_palette,
                                           x=0, y=DISPLAY_Y_SIZE - TEMPS_Y_SIZE)
@@ -168,6 +169,7 @@ class ac_display(ac_base, ac_non_volatile):
 
         self.point = None
 
+
 # Some button functions
     def button_grid(self, row, col):
         return Coords(BUTTON_MARGIN * (col + 1) + BUTTON_WIDTH * col + 0,
@@ -205,17 +207,25 @@ class ac_display(ac_base, ac_non_volatile):
         loop_count = 0
         while True:
 
-# Not sure what ft.touches does...   This seems to work.
+# Documentation on adafruit_focaltouch minimal.   I think this drains the touches array.
+            try:
+              touched = self.ft.touched
+              touches = self.ft.touches
+            except Exception as e:
+              self.logger.error(f'Focaltouch error: {e}')
+              await asyncio.sleep(5)
+              continue
+
             if self.point is not None:
-                if self.ft.touches == []:
+               if touches == []:
                     self.point = None
 
-            if self.ft.touched and self.point is None:
-                if self.ft.touches != []:
+            if touched and self.point is None:
+                if touches != []:
                     self.disable_blink_count = 30
                     self.lite.duty_cycle = 65535
                     try:
-                        self.point = (self.ft.touches[0]['x'], self.ft.touches[0]['y'])
+                        self.point = (touches[0]['x'], touches[0]['y'])
                         self.touch_logger.debug(f'Touch detected: {self.point}')
                     except Exception as e:
                         self.touch_logger.error (f'Exception - {e}')
@@ -317,8 +327,12 @@ class ac_display(ac_base, ac_non_volatile):
             await asyncio.sleep(0.2)
 
     def gen_temps_plot(self, inc_temps_index):
-        max_temp = ac_base.temp
-        min_temp = ac_base.temp
+        if math.isnan(ac_base.temp):
+            self.temps_bg = (self.temps_bg + 1) % 2
+        else:
+            self.temps_bg = 0
+        max_temp = ac_base.temp if not math.isnan(ac_base.temp) else 70
+        min_temp = ac_base.temp if not math.isnan(ac_base.temp) else 70
         for ii in range(0, TEMPS_X_SIZE):
             index = (self.temps_index + ii) % TEMPS_X_SIZE
             max_temp = max(max_temp, self.temps_line[index]) if self.temps_line[index] is not None else max_temp
@@ -332,7 +346,7 @@ class ac_display(ac_base, ac_non_volatile):
         else:
             dots_per_degree = 0
 
-        bitmaptools.fill_region(self.temps_bitmap, 0, 0, TEMPS_X_SIZE, TEMPS_Y_SIZE, 0)
+        bitmaptools.fill_region(self.temps_bitmap, 0, 0, TEMPS_X_SIZE, TEMPS_Y_SIZE, self.temps_bg)
 
         for ii in range(0 , TEMPS_X_SIZE-1):
             index = (self.temps_index - ii)  if self.temps_index >= ii else 239 - ii + self.temps_index
@@ -344,9 +358,9 @@ class ac_display(ac_base, ac_non_volatile):
                 if y_scaled < 1 or y_scaled > 105 :
                     print (y_scaled)
                 else:
-                    self.temps_bitmap[reverse_x_index, y_scaled] = 1
-                    self.temps_bitmap[reverse_x_index, y_scaled+1] = 1
-                    self.temps_bitmap[reverse_x_index, y_scaled-1] = 1
+                    self.temps_bitmap[reverse_x_index, y_scaled] = 2
+                    self.temps_bitmap[reverse_x_index, y_scaled+1] = 2
+                    self.temps_bitmap[reverse_x_index, y_scaled-1] = 2
         
         self.set_temp_display.text = f'{midtemp:.2f}'
         self.set_hi_temp_display.text = f'{max_temp:.2f}'
@@ -358,7 +372,7 @@ if __name__ == "__main__":
     import busio
         
     i2c = busio.I2C(board.SCL, board.SDA) 
-    disp = ac_display(i2c)
+    disp = AcDisplay(i2c)
 
     while True:
         disp.get_touch()

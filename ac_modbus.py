@@ -15,8 +15,10 @@ import digitalio
 import asyncio
 import adafruit_logging as logging
 import os
+import math
 
 POW_EN_PIN = board.D5
+TEST_ERR_REGS = False  # Not the greatest test.   Can't really inject errors.
 
 host = ModbusRTUMaster(
     tx_pin=board.TX,
@@ -113,7 +115,10 @@ class ac_modbus(ac_base):
         if self.pow_valid:
             try:
                 reg_data = host.read_holding_registers(SLAVE_ADDR, reg_dict[reg_name], 1)[0]
-                return reg_data
+                if (reg_name == "Fault1" or reg_name == "Fault2" or reg_name == "Warning1") and TEST_ERR_REGS:
+                    return 1
+                else:
+                    return reg_data
             except Exception as e:
                 self.logger.error(f'Error reading register: {reg_name} - {e}')
         return False
@@ -143,7 +148,7 @@ class ac_modbus(ac_base):
     async def ac_loop(self):
         self.logger.info(f'Starting ac_loop.')
         while True:
-            if not ac_base.ac_enable:
+            if not ac_base.ac_enable or math.isnan(ac_base.temp):
                 await self.pow_off()
             else:
                 if ac_base.pid_demand is not None:
@@ -162,6 +167,15 @@ class ac_modbus(ac_base):
                             else:
                                 await self.write_rpm_set(pid_rpm)
 
+                rigid_ac_Fault1 = self.read_holding_reg("Fault1")
+                if rigid_ac_Fault1 != 0:
+                    self.logger.warning(f'Rigid AC Fault1 is not zero: {rigid_ac_Fault1}')
+                rigid_ac_Fault2 = self.read_holding_reg("Fault2")
+                if rigid_ac_Fault2 != 0:
+                    self.logger.warning(f'Rigid AC Fault2 is not zero: {rigid_ac_Fault2}')
+                rigid_ac_Warning1 = self.read_holding_reg("Warning1")
+                if rigid_ac_Warning1 != 0:
+                    self.logger.warning(f'Rigid AC Warning1 is not zero: {rigid_ac_Warning1}')
                 self.logger.debug(f'{self.pow_valid=} {ac_base.pid_demand=} {pid_rpm=}')
 
             await asyncio.sleep(LOOP_PERIOD)   

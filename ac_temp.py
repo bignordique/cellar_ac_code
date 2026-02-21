@@ -37,3 +37,4 @@ class ac_temp():
                 self.logger.debug(f'temp: {ac_base.temp:.1f}F rh: {ac_base.rh:.2f} cpu_temp: {ac_base.cpu_temp:.1f}F\n')
             except Exception as e:
                 self.logger.error(f'Read temp error: {e}')
+                ac_base.temp = float('nan')

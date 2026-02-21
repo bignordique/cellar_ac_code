@@ -18,8 +18,10 @@ class ac_base():
     time_time = None
     compressor_rpm = None
     fan_rpm = [None, None]
-    fan_percent_requested_rpm = [1000, 1000]
     pid_demand = None
+    rigid_ac_Fault1 = None
+    rigid_ac_Fault2 = None
+    rigid_ac_Warning1 = None
 
     def __init__(self):
         pass
