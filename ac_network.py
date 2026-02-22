@@ -115,7 +115,7 @@ class ac_network(ac_base):
 
             while True:
                 self.attempts["post"] += 1
-                post_data = str({"time":self.get_localtime(), "temp":ac_base.temp})
+                post_data = f'{{time:{self.get_localtime()}, temp:{ac_base.temp:.1f}}}'
                 try:
                     with self.requests.post(POST_TEMP_URL, data=post_data) as response:
                         if response.status_code != 200:
