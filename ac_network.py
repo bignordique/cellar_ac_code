@@ -21,7 +21,7 @@ from cedargrove_dst_adjuster import adjust_dst #type: ignore
 import math
 
 NTP_SERVER_IPADDR = "192.168.1.1"
-POST_TEMP_URL = "http://192.168.1.55/cgi-bin/record_cellar_temp.py"
+POST_TEMP_URL = "http://192.168.1.55/cgi-bin/record_ac_temp.py"
 FAIL_WAIT = 5
 NTP_PERIOD = 60
 POST_PERIOD = 60
