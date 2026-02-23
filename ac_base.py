@@ -35,7 +35,7 @@ class ac_base():
     
     def get_minutes(self):
         xst_time = time.localtime(self.get_localtime())
-        return (xst_time.tm_sec)
+        return (xst_time.tm_min)
             
     def get_nice_time(self):
         xst_time = time.localtime(self.get_localtime())

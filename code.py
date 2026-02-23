@@ -57,7 +57,7 @@ i2c_dict = {54: "BATT_MON",
 MC_LOOP_DELAY = 1
 loop_secs = MC_LOOP_DELAY * 1
 
-TEMPS_PERIOD = os.getenv("TEMPS_PERIOD", 360)
+TEMPS_PERIOD = os.getenv("TEMPS_PERIOD", 6)
 
 SELF_TEST_MODE = os.getenv("SELF_TEST_MODE", "false").lower() == "true"
 
