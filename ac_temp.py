@@ -4,8 +4,6 @@ from ac_base import CustomStreamHandler
 import adafruit_hts221
 import microcontroller
 
-PERIOD = 5
-
 class ac_temp():
     def __init__(self, i2c, self_test=False):
         self.self_test = self_test
