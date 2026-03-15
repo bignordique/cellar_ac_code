@@ -85,7 +85,7 @@ class AcDisplay(ac_base, AcNonVolatile):
         self.initialized = False
         try:
             display_bus = fourwire.FourWire(board.SPI(),  command = board.A4, chip_select = board.A5)
-            self.display = adafruit_ili9341.ILI9341(display_bus, rotation=90, width=DISPLAY_X_SIZE, \
+            self.display = adafruit_ili9341.ILI9341(display_bus, rotation=270, width=DISPLAY_X_SIZE, \
                                                     height=DISPLAY_Y_SIZE)
             self.logger.info(f'ILI9341 connected through FourWire.')
             self.initialized = True
@@ -225,7 +225,8 @@ class AcDisplay(ac_base, AcNonVolatile):
                     self.disable_blink_count = 30
                     self.lite.duty_cycle = 65535
                     try:
-                        self.point = (touches[0]['x'], touches[0]['y'])
+                        #self.point = (touches[0]['x'], touches[0]['y'])
+                        self.point = (DISPLAY_X_SIZE - touches[0]['x'], DISPLAY_Y_SIZE - touches[0]['y'])
                         self.touch_logger.debug(f'Touch detected: {self.point}')
                     except Exception as e:
                         self.touch_logger.error (f'Exception - {e}')

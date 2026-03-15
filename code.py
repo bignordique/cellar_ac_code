@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
     display = AcDisplay(i2c, SELF_TEST_MODE) 
     if display.initialized:
-        logging.getLogger('ac_display').setLevel(logging.INFO)
+        logging.getLogger('ac_display').setLevel(logging.DEBUG)
         logging.getLogger('touch').setLevel(logging.INFO)
         logging.getLogger('lite').setLevel(logging.INFO)
         logging.getLogger('ac_non_volatile').setLevel(logging.INFO)
@@ -188,8 +188,9 @@ if __name__ == "__main__":
         task_list.append(asyncio.create_task(network.post_temp()))  
 
     fan = ac_fans()
-    logging.getLogger('ac_fans').setLevel(logging.INFO)
+    logging.getLogger('ac_fans').setLevel(logging.DEBUG)
     task_list.append(asyncio.create_task(fan.fan_loop()))
+    #task_list.append(asyncio.create_task(fan.characterize_fans()))
 
     modbus = ac_modbus()
     logging.getLogger('ac_modbus').setLevel(logging.INFO)
