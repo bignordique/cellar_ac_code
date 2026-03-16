@@ -7,7 +7,7 @@ import microcontroller
 class ac_temp():
     def __init__(self, i2c, self_test=False):
         self.self_test = self_test
-        self.self_test_list = [70.5, 70.15, 70.05, 70, 69.95, 69.85, 69.5, 69.85, 69.96, 70, 70.05, 70.15, 70.5, 71, 72]
+        self.self_test_list = [70.5, 70.15, 70.05, 70, 69.95, 69.85, 69.5, 69.85, 69.96, 70, 70.05, 70.15, 70.5, 71, 72] + [0] * 100
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(CustomStreamHandler())

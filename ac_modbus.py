@@ -57,7 +57,7 @@ MAX_COMP_RPM = 5000
 MIN_COMP_RPM = 2000
 COMP_RPM_RANGE = MAX_COMP_RPM - MIN_COMP_RPM
 
-DEADBAND = float(os.getenv("COMPRESSOR_DEADBAND", 0.01))
+DEADBAND = float(os.getenv("COMPRESSOR_DEADBAND", 0.1))
 
 LOOP_PERIOD = 1
 POW_ON_DELAY = 5
@@ -160,6 +160,7 @@ class ac_modbus(ac_base):
                             await self.write_rpm_set(pid_rpm)
                     else:
                         if ac_base.pid_demand < -DEADBAND:
+                            print (f'{ac_base.pid_demand=} {DEADBAND=}')
                             await self.pow_off()
                         else:
                             if ac_base.pid_demand < 0:

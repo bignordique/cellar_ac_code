@@ -53,13 +53,16 @@ fan_tach0 = countio.Counter(board.A1, edge=countio.Edge.RISE, pull=digitalio.Pul
 fan_tach1 = countio.Counter(board.A3, edge=countio.Edge.RISE, pull=digitalio.Pull.UP)
 
 class ac_fans(ac_base):
-    def __init__(self):
+    def __init__(self, self_test_mode):
 
         self.logger = logging.getLogger(__name__)
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
         self.fan_pid0 = PID(Kp=Kp, Ki=Ki, Kd=Kd, setpoint=0, sample_time=None)
         self.fan_pid1 = PID(Kp=Kp, Ki=Ki, Kd=Kd, setpoint=0, sample_time=None)
+
+        self.fan_burst_length = 1 * 60 // FAN_LOOP_DELAY if self_test_mode else FAN_BURST_LENGTH
+        self.fan_burst_cycle = 5 * 60 // FAN_LOOP_DELAY if self_test_mode else FAN_BURST_CYCLE
     
     async def fan_pow_on(self):
         if not pow_en.value :
@@ -78,12 +81,12 @@ class ac_fans(ac_base):
 
         self.logger.info(f'Starting fan_loop.')
 
+        last_pid_rpm = 0
+
         while True:
 
             if not ac_base.ac_enable:
-                last_pid_rpm = 0
                 fan_loop_base = 0
-                burst_stop = FAN_BURST_CYCLE
                 fan_pwm0.duty_cycle = 0
                 fan_pwm1.duty_cycle = 0
                 await self.fan_pow_off()
@@ -93,23 +96,17 @@ class ac_fans(ac_base):
                 if not math.isnan(ac_base.temp):
                     if ac_base.pid_demand >= 0:
                         pid_rpm = ac_base.pid_demand * FAN_RPM_RANGE + FAN_MIN_RPM
-                    elif pow_en.value and ac_base.pid_demand > -DEADBAND and last_pid_rpm > pid_rpm :
+                    elif pow_en.value and ac_base.pid_demand > -DEADBAND and last_pid_rpm != 0:
                         pid_rpm = FAN_MIN_RPM
-                if pid_rpm == 0 and last_pid_rpm != 0:
-                    target_rpm = 0
+
+                target_rpm = pid_rpm
                 last_pid_rpm = pid_rpm
 
-
                 if pid_rpm != 0:
-                    fan_loop_base = FAN_BURST_CYCLE - FAN_BURST_LENGTH
-                    burst_stop = FAN_BURST_CYCLE
+                    fan_loop_base = self.fan_burst_length
                 
-                if fan_loop_base == 0 :
+                if fan_loop_base < self.fan_burst_length:
                         target_rpm = FAN_BURST_RPM
-                        burst_stop = fan_loop_base + FAN_BURST_LENGTH
-
-                if fan_loop_base == burst_stop :
-                        target_rpm = 0
 
                 if target_rpm == 0:
                     await self.fan_pow_off()
@@ -158,7 +155,7 @@ class ac_fans(ac_base):
                         self.logger.debug(f'RPM: {fan_rpm0, fan_rpm1}, target: {target_rpm}, error: {rpm_error0, rpm_error1} adjust: {rpm_adjust0, rpm_adjust1}')
                     fan_pid_base += 1 
 
-                fan_loop_base = (fan_loop_base + 1) % FAN_BURST_CYCLE
+                fan_loop_base = (fan_loop_base + 1) % self.fan_burst_cycle
 
             await asyncio.sleep(FAN_LOOP_DELAY)
 

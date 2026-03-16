@@ -187,9 +187,9 @@ if __name__ == "__main__":
         task_list.append(asyncio.create_task(network.fetch_ntp()))
         task_list.append(asyncio.create_task(network.post_temp()))  
 
-    fan = ac_fans()
+    fan = ac_fans(SELF_TEST_MODE)
     logging.getLogger('ac_fans').setLevel(logging.DEBUG)
-    task_list.append(asyncio.create_task(fan.fan_loop()))
+    #task_list.append(asyncio.create_task(fan.fan_loop()))
     #task_list.append(asyncio.create_task(fan.characterize_fans()))
 
     modbus = ac_modbus()
