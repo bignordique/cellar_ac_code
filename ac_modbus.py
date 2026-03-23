@@ -160,7 +160,6 @@ class ac_modbus(ac_base):
                             await self.write_rpm_set(pid_rpm)
                     else:
                         if ac_base.pid_demand < -DEADBAND:
-                            print (f'{ac_base.pid_demand=} {DEADBAND=}')
                             await self.pow_off()
                         else:
                             if ac_base.pid_demand < 0:

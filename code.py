@@ -125,9 +125,12 @@ class ac_master_cylinder(ac_base):
                     ac_base.pid_demand = self.pid(ac_base.temp)
 
             if loop_counter % 5 == 0:      
-                logger.debug(f'ms/loop: {ms_per_loop} mem_free: {gc.mem_free()} temp_err:{ac_base.temp_err:.2f}' + 
-                             f' pid: {ac_base.pid_demand:.2f} rpm: {modbus.read_rpm()}'+
-                             f' fans: {ac_base.fan_rpm}')
+                logger.debug(f'ms/loop: {ms_per_loop} mem_free: {gc.mem_free()}')
+
+            if loop_counter % 10 == 0:
+                logger.info(f'temp_err:{ac_base.temp_err:.2f}' + 
+                            f' pid: {ac_base.pid_demand:.2f} rpm: {modbus.read_rpm()}'+
+                            f' fans: {ac_base.fan_rpm}')
 
             loop_counter += 1  # seconds from boot, infinite integers
             ac_base.compressor_rpm = modbus.read_rpm()
@@ -137,7 +140,7 @@ if __name__ == "__main__":
 
     logger = logging.getLogger(__name__)
     logger.addHandler(CustomStreamHandler())
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
 # No i2c, doesn't make sense to continue.
     i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
@@ -188,8 +191,8 @@ if __name__ == "__main__":
         task_list.append(asyncio.create_task(network.post_temp()))  
 
     fan = ac_fans(SELF_TEST_MODE)
-    logging.getLogger('ac_fans').setLevel(logging.DEBUG)
-    #task_list.append(asyncio.create_task(fan.fan_loop()))
+    logging.getLogger('ac_fans').setLevel(logging.INFO)
+    task_list.append(asyncio.create_task(fan.fan_loop()))
     #task_list.append(asyncio.create_task(fan.characterize_fans()))
 
     modbus = ac_modbus()
