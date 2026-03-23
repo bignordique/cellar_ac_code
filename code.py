@@ -128,7 +128,7 @@ class ac_master_cylinder(ac_base):
                 logger.debug(f'ms/loop: {ms_per_loop} mem_free: {gc.mem_free()}')
 
             if loop_counter % 10 == 0:
-                logger.info(f'temp_err:{ac_base.temp_err:.2f}' + 
+                logger.debug(f'temp_err:{ac_base.temp_err:.2f}' + 
                             f' pid: {ac_base.pid_demand:.2f} rpm: {modbus.read_rpm()}'+
                             f' fans: {ac_base.fan_rpm}')
 
