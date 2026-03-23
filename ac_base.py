@@ -72,3 +72,31 @@ class CustomStreamHandler(logging.Handler, ac_base):
         """Flush the stream."""
         #self.stream.flush()  # stream.flush doesn't work?? 
         pass
+
+class StreamHandlerWithTemp(logging.Handler, ac_base):
+    """Send logging output to a stream (sys.stderr by default) with a custom format."""
+
+    def __init__(self, stream=None, level=logging.NOTSET):
+        super().__init__(level)
+        #ac_base __init__ is a nop
+        self.stream = stream if stream is not None else sys.stderr
+
+    def format(self, record):
+        """Generate a custom formatted string to log."""
+        # The base format includes timestamp, levelname, and message.
+        # You can customize the entire string here.
+        # record attributes available: name, levelno, levelname, msg
+        # The default format is "{timestamp}: {levelname} - {msg}"
+        #custom_message = "{}: {} {} - {}".format(record.created, record.name, record.levelname, record.msg)
+        custom_message = f'{self.get_nice_time()}: {record.name} {record.levelname} {self.temp:.2f} - {record.msg}'
+        return custom_message + "\n" # Add newline character
+
+    def emit(self, record):
+        """Generate the message and write it to the stream."""
+        self.stream.write(self.format(record))
+        self.flush()
+
+    def flush(self): 
+        """Flush the stream."""
+        #self.stream.flush()  # stream.flush doesn't work?? 
+        pass

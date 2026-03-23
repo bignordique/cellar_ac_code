@@ -142,6 +142,9 @@ if __name__ == "__main__":
     logger.addHandler(CustomStreamHandler())
     logger.setLevel(logging.INFO)
 
+    supervisor.runtime.autoreload = False
+    logger.info(f'{supervisor.runtime.autoreload=}')
+
 # No i2c, doesn't make sense to continue.
     i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
     i2c_list = []

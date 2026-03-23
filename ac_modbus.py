@@ -10,6 +10,7 @@
 from umodbus.serial import Serial as ModbusRTUMaster #type: ignore
 from ac_base import ac_base
 from ac_base import CustomStreamHandler
+from ac_base import StreamHandlerWithTemp
 import board
 import digitalio
 import asyncio
@@ -75,6 +76,10 @@ class ac_modbus(ac_base):
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
 
+        self.logger_with_temp = logging.getLogger(__name__ + "with_temp")
+        self.logger_with_temp.addHandler(StreamHandlerWithTemp())
+        self.logger_with_temp.setLevel(logging.INFO)
+
         self.logger.info(f'AC Modbus initialized.')
 
     async def pow_on(self):
@@ -82,7 +87,7 @@ class ac_modbus(ac_base):
             self.pow_en.value = True
             await asyncio.sleep(POW_ON_DELAY)
             self.pow_valid = True
-            self.logger.info(f'AC Modbus pow_valid is True')
+            self.logger_with_temp.info(f'AC Modbus pow_valid is True')
             self.write_single_reg("Control_Mode", COMM_MODE)
             self.write_single_reg("Control", 0)
 
@@ -90,7 +95,7 @@ class ac_modbus(ac_base):
         if self.pow_valid:
             self.pow_en.value = False
             self.pow_valid = False
-            self.logger.info(f'AC Modbus pow_valid is False')
+            self.logger_with_temp.info(f'AC Modbus pow_valid is False')
             await asyncio.sleep(POW_OFF_DELAY)
 
     def read_all_regs(self):
