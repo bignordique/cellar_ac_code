@@ -107,7 +107,7 @@ class ac_display(ac_base):
         self.group.append(temps_sprite)
 
 # Load the font
-        self.font = bitmap_font.load_font("/fonts/Arial-Bold-24.bdf")
+ #       self.font = bitmap_font.load_font("/fonts/Arial-Bold-24.bdf")
         self.buttons = []
 
         """box_border = RoundRect(20, 8, 200, 35, r=10, fill=WHITE, outline=BLACK, stroke=2)
@@ -125,7 +125,7 @@ class ac_display(ac_base):
 
         pos = self.button_grid(0, 1)
         set_point_box = RoundRect(pos.x, pos.y, BUTTON_WIDTH, BUTTON_HEIGHT, r=10, fill=WHITE, outline=BLACK, stroke=2)
-        self.set_point_label = Label(self.font, x=int(BUTTON_MARGIN + BUTTON_WIDTH*1.5 - 5), 
+        self.set_point_label = Label("""self.font"""terminalio.FONT, x=int(BUTTON_MARGIN + BUTTON_WIDTH*1.5 - 5), 
                                                 y=10 + BUTTON_HEIGHT//2 + 1 * BUTTON_MARGIN, 
                                                 text="", color=ORANGE)
 
@@ -160,7 +160,7 @@ class ac_display(ac_base):
         pos = self.button_grid(row, col)
         new_button = Button(x=pos.x, y=pos.y,
                             width=BUTTON_WIDTH * width + BUTTON_MARGIN * (width - 1),
-                            height=BUTTON_HEIGHT, label=label, label_font=self.font,
+                            height=BUTTON_HEIGHT, label=label, label_font=terminalio.FONT"""self.font""",
                             label_color=text_color, fill_color=color, style=Button.ROUNDRECT, label_scale=1)
         self.buttons.append(new_button)
         return new_button
