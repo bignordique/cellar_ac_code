@@ -30,7 +30,7 @@ import asyncio
 import adafruit_logging as logging
 import busio
 import board
-from ac_display import ac_display
+from ac_display import AcDisplay
 from ac_network import ac_network
 from ac_temp import ac_temp
 from ac_base import ac_base
@@ -43,15 +43,21 @@ from simple_pid import PID #type: ignore
 import supervisor
 import os
 import gc
+import math
 
-I2C_BATT_MON = 54
-I2C_HTS221_TEMP_HUM = 95 
-I2C_FOCALTOUCH = 56
+I2C_BATT_MON = os.getenv("I2C_BATT_MON", 54)
+I2C_HTS221_TEMP_HUM = os.getenv("I2C_HTS221_TEMP_HUM", 95) 
+I2C_FOCALTOUCH = os.getenv("I2C_FOCALTOUCH", 56)
+I2C_24LC32 = os.getenv("I2C_24LC32", 80)
+i2c_dict = {54: "BATT_MON",
+            95: "HTS221_TEMP_HUM",
+            56: "FOCALTOUCH",
+            80: "24LC32_NV"}
 
 MC_LOOP_DELAY = 1
 loop_secs = MC_LOOP_DELAY * 1
 
-TEMPS_PERIOD = 1
+TEMPS_PERIOD = os.getenv("TEMPS_PERIOD", 6)
 
 SELF_TEST_MODE = os.getenv("SELF_TEST_MODE", "false").lower() == "true"
 
@@ -79,6 +85,20 @@ class ac_master_cylinder(ac_base):
         if SELF_TEST_MODE:
             logger.info(f'{SELF_TEST_MODE=}')
         last_temps_period = None
+        auto_on_status = display.read_nv("auto_on")
+        if auto_on_status == None:
+            logger.info(f'auto_on status is None.  No EEPROM. defaulting to off.')
+        elif auto_on_status == False:
+            logger.warning(f'auto_on status is False.  EEPROM hash failure. defaulting to off.')
+        elif int.from_bytes(auto_on_status, "big") == 0: 
+            set_point = display.read_nv("set_point") 
+            if set_point == None or set_point == False: 
+                logger.error(f'set_point is {set_point}.  Missing EEPROM or hash failure. defaulting off.')
+            else:
+                ac_base.temp_set_point = int.from_bytes(set_point, "big")
+                display.on_off_button_press("set_on")   
+                display.auto_on_button_press("button_on")
+
         while True:
 
             if loop_counter % loop_secs == 0: 
@@ -90,10 +110,8 @@ class ac_master_cylinder(ac_base):
                 if minutes % TEMPS_PERIOD == 0:
                     if last_temps_period != minutes or last_temps_period is None:
                         last_temps_period = minutes
-                        ac_base.temps_line[ac_base.temps_index] = ac_base.temp
+                        display.temps_line[display.temps_index] = display.temp if not math.isnan(display.temp) else 70
                         display.gen_temps_plot(True)
-
-                ac_base.temp_err = ac_base.temp_set_point - ac_base.temp 
 
                 if last_supervisor_ticks is None:
                     last_supervisor_ticks = supervisor.ticks_ms()
@@ -102,12 +120,17 @@ class ac_master_cylinder(ac_base):
                     ms_per_loop = (supervisor.ticks_ms() - last_supervisor_ticks)//loop_secs
                 last_supervisor_ticks = supervisor.ticks_ms()
 
-                ac_base.pid_demand = self.pid(ac_base.temp)
+                ac_base.temp_err = ac_base.temp_set_point - ac_base.temp 
+                if not math.isnan(ac_base.temp):
+                    ac_base.pid_demand = self.pid(ac_base.temp)
 
             if loop_counter % 5 == 0:      
-                logger.debug(f'ms/loop: {ms_per_loop} temp_err:{ac_base.temp_err:.2f}' + 
-                             f' rpm: {modbus.read_rpm()} pid: {ac_base.pid_demand:.2f}' +
-                             f' mem_free: {gc.mem_free()}')
+                logger.debug(f'ms/loop: {ms_per_loop} mem_free: {gc.mem_free()}')
+
+            if loop_counter % 10 == 0:
+                logger.debug(f'temp_err:{ac_base.temp_err:.2f}' + 
+                            f' pid: {ac_base.pid_demand:.2f} rpm: {modbus.read_rpm()}'+
+                            f' fans: {ac_base.fan_rpm}')
 
             loop_counter += 1  # seconds from boot, infinite integers
             ac_base.compressor_rpm = modbus.read_rpm()
@@ -117,17 +140,24 @@ if __name__ == "__main__":
 
     logger = logging.getLogger(__name__)
     logger.addHandler(CustomStreamHandler())
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
+
+    supervisor.runtime.autoreload = False
+    logger.info(f'{supervisor.runtime.autoreload=}')
 
 # No i2c, doesn't make sense to continue.
     i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
     i2c_list = []
     while not I2C_HTS221_TEMP_HUM in i2c_list:
-        logger.info(f'Searching for HTS221 module.')
+        logger.info(f'Scanning I2C bus.')
         try:
             i2c.try_lock()
             i2c_list = i2c.scan()
-            logger.info(f'{i2c_list}  I2C addresses found.')
+            i2c_devices = ""
+            for ii in i2c_list:
+                i2c_devices += i2c_dict[ii]
+                if ii != i2c_list[-1]: i2c_devices += " "
+            logger.info(f'I2C devices found: {i2c_devices}')
             i2c.unlock()
             continue
         except ValueError as ve:
@@ -144,14 +174,16 @@ if __name__ == "__main__":
     if temp.initialized:
         logging.getLogger('ac_temp').setLevel(logging.INFO) 
 
-    display = ac_display(i2c, SELF_TEST_MODE) 
+    display = AcDisplay(i2c, SELF_TEST_MODE) 
     if display.initialized:
-        logging.getLogger('ac_display').setLevel(logging.INFO)
+        logging.getLogger('ac_display').setLevel(logging.DEBUG)
         logging.getLogger('touch').setLevel(logging.INFO)
         logging.getLogger('lite').setLevel(logging.INFO)
+        logging.getLogger('ac_non_volatile').setLevel(logging.INFO)
         task_list.append(asyncio.create_task(display.lite_loop()))
         if display.ft is not None:
             task_list.append(asyncio.create_task(display.get_touch()))
+
 
     network = ac_network()
     if network.ethernet:
@@ -161,9 +193,10 @@ if __name__ == "__main__":
         task_list.append(asyncio.create_task(network.fetch_ntp()))
         task_list.append(asyncio.create_task(network.post_temp()))  
 
-    fan = ac_fans()
-    logging.getLogger('ac_fans').setLevel(logging.DEBUG)
+    fan = ac_fans(SELF_TEST_MODE)
+    logging.getLogger('ac_fans').setLevel(logging.INFO)
     task_list.append(asyncio.create_task(fan.fan_loop()))
+    #task_list.append(asyncio.create_task(fan.characterize_fans()))
 
     modbus = ac_modbus()
     logging.getLogger('ac_modbus').setLevel(logging.INFO)

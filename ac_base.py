@@ -7,12 +7,6 @@ class ac_base():
     SELF_TEST_MODE= os.getenv("SELF_TEST_MODE", "false").lower() == "true"
     MAX_TEMP = int(os.getenv("MAX_TEMP", "75"))
     MIN_TEMP = int(os.getenv("MIN_TEMP", "60"))
-    DISPLAY_X_SIZE = 240
-    DISPLAY_Y_SIZE = 320
-    TEMPS_X_SIZE = DISPLAY_X_SIZE
-    TEMPS_Y_SIZE = DISPLAY_Y_SIZE//3 + 1
-    temps_line = [None] * TEMPS_X_SIZE
-    temps_index = 0
     if SELF_TEST_MODE : temp_set_point = 70
     else: temp_set_point = MAX_TEMP
     ac_enable = False
@@ -24,8 +18,10 @@ class ac_base():
     time_time = None
     compressor_rpm = None
     fan_rpm = [None, None]
-    fan_percent_requested_rpm = [1000, 1000]
     pid_demand = None
+    rigid_ac_Fault1 = None
+    rigid_ac_Fault2 = None
+    rigid_ac_Warning1 = None
 
     def __init__(self):
         pass
@@ -39,7 +35,7 @@ class ac_base():
     
     def get_minutes(self):
         xst_time = time.localtime(self.get_localtime())
-        return (xst_time.tm_sec)
+        return (xst_time.tm_min)
             
     def get_nice_time(self):
         xst_time = time.localtime(self.get_localtime())
@@ -65,6 +61,34 @@ class CustomStreamHandler(logging.Handler, ac_base):
         # The default format is "{timestamp}: {levelname} - {msg}"
         #custom_message = "{}: {} {} - {}".format(record.created, record.name, record.levelname, record.msg)
         custom_message = f'{self.get_nice_time()}: {record.name} {record.levelname} - {record.msg}'
+        return custom_message + "\n" # Add newline character
+
+    def emit(self, record):
+        """Generate the message and write it to the stream."""
+        self.stream.write(self.format(record))
+        self.flush()
+
+    def flush(self): 
+        """Flush the stream."""
+        #self.stream.flush()  # stream.flush doesn't work?? 
+        pass
+
+class StreamHandlerWithTemp(logging.Handler, ac_base):
+    """Send logging output to a stream (sys.stderr by default) with a custom format."""
+
+    def __init__(self, stream=None, level=logging.NOTSET):
+        super().__init__(level)
+        #ac_base __init__ is a nop
+        self.stream = stream if stream is not None else sys.stderr
+
+    def format(self, record):
+        """Generate a custom formatted string to log."""
+        # The base format includes timestamp, levelname, and message.
+        # You can customize the entire string here.
+        # record attributes available: name, levelno, levelname, msg
+        # The default format is "{timestamp}: {levelname} - {msg}"
+        #custom_message = "{}: {} {} - {}".format(record.created, record.name, record.levelname, record.msg)
+        custom_message = f'{self.get_nice_time()}: {record.name} {record.levelname} {self.temp:.2f} - {record.msg}'
         return custom_message + "\n" # Add newline character
 
     def emit(self, record):

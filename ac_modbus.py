@@ -10,13 +10,16 @@
 from umodbus.serial import Serial as ModbusRTUMaster #type: ignore
 from ac_base import ac_base
 from ac_base import CustomStreamHandler
+from ac_base import StreamHandlerWithTemp
 import board
 import digitalio
 import asyncio
 import adafruit_logging as logging
 import os
+import math
 
 POW_EN_PIN = board.D5
+TEST_ERR_REGS = False  # Not the greatest test.   Can't really inject errors.
 
 host = ModbusRTUMaster(
     tx_pin=board.TX,
@@ -55,7 +58,7 @@ MAX_COMP_RPM = 5000
 MIN_COMP_RPM = 2000
 COMP_RPM_RANGE = MAX_COMP_RPM - MIN_COMP_RPM
 
-DEADBAND = float(os.getenv("COMPRESSOR_DEADBAND", 0.01))
+DEADBAND = float(os.getenv("COMPRESSOR_DEADBAND", 0.1))
 
 LOOP_PERIOD = 1
 POW_ON_DELAY = 5
@@ -73,6 +76,10 @@ class ac_modbus(ac_base):
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
 
+        self.logger_with_temp = logging.getLogger(__name__ + "with_temp")
+        self.logger_with_temp.addHandler(StreamHandlerWithTemp())
+        self.logger_with_temp.setLevel(logging.INFO)
+
         self.logger.info(f'AC Modbus initialized.')
 
     async def pow_on(self):
@@ -80,7 +87,7 @@ class ac_modbus(ac_base):
             self.pow_en.value = True
             await asyncio.sleep(POW_ON_DELAY)
             self.pow_valid = True
-            self.logger.info(f'AC Modbus pow_valid is True')
+            self.logger_with_temp.info(f'AC Modbus pow_valid is True')
             self.write_single_reg("Control_Mode", COMM_MODE)
             self.write_single_reg("Control", 0)
 
@@ -88,7 +95,7 @@ class ac_modbus(ac_base):
         if self.pow_valid:
             self.pow_en.value = False
             self.pow_valid = False
-            self.logger.info(f'AC Modbus pow_valid is False')
+            self.logger_with_temp.info(f'AC Modbus pow_valid is False')
             await asyncio.sleep(POW_OFF_DELAY)
 
     def read_all_regs(self):
@@ -113,7 +120,10 @@ class ac_modbus(ac_base):
         if self.pow_valid:
             try:
                 reg_data = host.read_holding_registers(SLAVE_ADDR, reg_dict[reg_name], 1)[0]
-                return reg_data
+                if (reg_name == "Fault1" or reg_name == "Fault2" or reg_name == "Warning1") and TEST_ERR_REGS:
+                    return 1
+                else:
+                    return reg_data
             except Exception as e:
                 self.logger.error(f'Error reading register: {reg_name} - {e}')
         return False
@@ -143,7 +153,7 @@ class ac_modbus(ac_base):
     async def ac_loop(self):
         self.logger.info(f'Starting ac_loop.')
         while True:
-            if not ac_base.ac_enable:
+            if not ac_base.ac_enable or math.isnan(ac_base.temp):
                 await self.pow_off()
             else:
                 if ac_base.pid_demand is not None:
@@ -162,6 +172,15 @@ class ac_modbus(ac_base):
                             else:
                                 await self.write_rpm_set(pid_rpm)
 
+                rigid_ac_Fault1 = self.read_holding_reg("Fault1")
+                if rigid_ac_Fault1 != 0:
+                    self.logger.warning(f'Rigid AC Fault1 is not zero: {rigid_ac_Fault1}')
+                rigid_ac_Fault2 = self.read_holding_reg("Fault2")
+                if rigid_ac_Fault2 != 0:
+                    self.logger.warning(f'Rigid AC Fault2 is not zero: {rigid_ac_Fault2}')
+                rigid_ac_Warning1 = self.read_holding_reg("Warning1")
+                if rigid_ac_Warning1 != 0:
+                    self.logger.warning(f'Rigid AC Warning1 is not zero: {rigid_ac_Warning1}')
                 self.logger.debug(f'{self.pow_valid=} {ac_base.pid_demand=} {pid_rpm=}')
 
             await asyncio.sleep(LOOP_PERIOD)   
