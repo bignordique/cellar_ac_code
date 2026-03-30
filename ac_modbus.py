@@ -10,7 +10,6 @@
 from umodbus.serial import Serial as ModbusRTUMaster #type: ignore
 from ac_base import ac_base
 from ac_base import CustomStreamHandler
-from ac_base import StreamHandlerWithTemp
 import board
 import digitalio
 import asyncio
@@ -54,7 +53,7 @@ COMM_MODE = 0              # Control via RS232
 
 # Spec says "Speed scope: 2000-6000"
 # Speedup Time 30s
-MAX_COMP_RPM = 5000
+MAX_COMP_RPM = 4500  #Limited by controller power of 150 watts.  Determined expirically.
 MIN_COMP_RPM = 2000
 COMP_RPM_RANGE = MAX_COMP_RPM - MIN_COMP_RPM
 
@@ -76,10 +75,6 @@ class ac_modbus(ac_base):
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
 
-        self.logger_with_temp = logging.getLogger(__name__ + "with_temp")
-        self.logger_with_temp.addHandler(StreamHandlerWithTemp())
-        self.logger_with_temp.setLevel(logging.INFO)
-
         self.logger.info(f'AC Modbus initialized.')
 
     async def pow_on(self):
@@ -87,7 +82,7 @@ class ac_modbus(ac_base):
             self.pow_en.value = True
             await asyncio.sleep(POW_ON_DELAY)
             self.pow_valid = True
-            self.logger_with_temp.info(f'AC Modbus pow_valid is True')
+            self.logger.debug(f'AC Modbus pow_valid is True')
             self.write_single_reg("Control_Mode", COMM_MODE)
             self.write_single_reg("Control", 0)
 
@@ -95,7 +90,7 @@ class ac_modbus(ac_base):
         if self.pow_valid:
             self.pow_en.value = False
             self.pow_valid = False
-            self.logger_with_temp.info(f'AC Modbus pow_valid is False')
+            self.logger.debug(f'AC Modbus pow_valid is False')
             await asyncio.sleep(POW_OFF_DELAY)
 
     def read_all_regs(self):
@@ -150,6 +145,16 @@ class ac_modbus(ac_base):
            return self.read_holding_reg("RPM_speed")
         else: return None
 
+    def compressor_power(self):
+        bus_voltage = self.read_holding_reg("Bus_Voltage")
+        if bus_voltage == False: bus_voltage = 0
+        output_current = self.read_holding_reg("Output_Current")
+        if output_current == False:
+            output_current = 0
+        else:
+            output_current = output_current/100
+        return f'volts: {bus_voltage} current: {output_current} pow: {bus_voltage*output_current}'
+
     async def ac_loop(self):
         self.logger.info(f'Starting ac_loop.')
         while True:
@@ -175,13 +180,19 @@ class ac_modbus(ac_base):
                 rigid_ac_Fault1 = self.read_holding_reg("Fault1")
                 if rigid_ac_Fault1 != 0:
                     self.logger.warning(f'Rigid AC Fault1 is not zero: {rigid_ac_Fault1}')
+                    self.logger.debug(self.read_all_regs())
                 rigid_ac_Fault2 = self.read_holding_reg("Fault2")
                 if rigid_ac_Fault2 != 0:
                     self.logger.warning(f'Rigid AC Fault2 is not zero: {rigid_ac_Fault2}')
+                    self.logger.debug(self.read_all_regs())
                 rigid_ac_Warning1 = self.read_holding_reg("Warning1")
                 if rigid_ac_Warning1 != 0:
                     self.logger.warning(f'Rigid AC Warning1 is not zero: {rigid_ac_Warning1}')
+                    self.logger.info(self.compressor_power())
+                    self.logger.debug(self.read_all_regs())
                 self.logger.debug(f'{self.pow_valid=} {ac_base.pid_demand=} {pid_rpm=}')
+
+            #self.logger.info(self.read_all_regs())
 
             await asyncio.sleep(LOOP_PERIOD)   
 

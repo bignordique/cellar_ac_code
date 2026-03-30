@@ -126,6 +126,7 @@ class AcDisplay(ac_base, AcNonVolatile):
         self.group.append(temps_sprite)
 
 # Load the font
+        self.buttons = []
 
 
         first_line = 2 * BUTTON_HEIGHT + 3*BUTTON_MARGIN + 10
@@ -139,7 +140,6 @@ class AcDisplay(ac_base, AcNonVolatile):
         auto_on_pos = self.button_grid_3w(0,2)
         self.auto_on_label = Label(terminalio.FONT, x=auto_on_pos.x + 17, y=auto_on_pos.y+BUTTON_HEIGHT//2+17, color=WHITE)
         self.auto_on_label.text = "IS_OFF"
-
 
         pos = self.button_grid_3w(0, 1)
         set_point_box = RoundRect(pos.x, pos.y, BUTTON_WIDTH_3W, BUTTON_HEIGHT, r=10, fill=WHITE, outline=BLACK, stroke=2)

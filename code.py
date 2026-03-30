@@ -36,6 +36,7 @@ from ac_temp import ac_temp
 from ac_base import ac_base
 from ac_fans import ac_fans
 from ac_base import CustomStreamHandler
+from ac_base import StreamHandlerStatusLine
 from ac_modbus import ac_modbus
 import time  
 import neopixel
@@ -128,9 +129,9 @@ class ac_master_cylinder(ac_base):
                 logger.debug(f'ms/loop: {ms_per_loop} mem_free: {gc.mem_free()}')
 
             if loop_counter % 10 == 0:
-                logger.debug(f'temp_err:{ac_base.temp_err:.2f}' + 
-                            f' pid: {ac_base.pid_demand:.2f} rpm: {modbus.read_rpm()}'+
-                            f' fans: {ac_base.fan_rpm}')
+                logger_status_line.info(f'{ac_base.temp:.2f} err: {ac_base.temp_err:.2f}' + 
+                            f' pid: {ac_base.pid_demand:.2f} comp: {modbus.read_rpm()}'+
+                            f' fans: {ac_base.fan_rpm} {modbus.compressor_power()}')
 
             loop_counter += 1  # seconds from boot, infinite integers
             ac_base.compressor_rpm = modbus.read_rpm()
@@ -142,8 +143,12 @@ if __name__ == "__main__":
     logger.addHandler(CustomStreamHandler())
     logger.setLevel(logging.INFO)
 
-    supervisor.runtime.autoreload = False
-    logger.info(f'{supervisor.runtime.autoreload=}')
+    logger_status_line = logging.getLogger("status_line")
+    logger_status_line.addHandler(StreamHandlerStatusLine())
+    logger_status_line.setLevel(logging.INFO)
+
+#    supervisor.runtime.autoreload = True
+#   logger.info(f'{supervisor.runtime.autoreload=}')
 
 # No i2c, doesn't make sense to continue.
     i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)

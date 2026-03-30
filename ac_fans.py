@@ -6,7 +6,6 @@
 
 from ac_base import ac_base
 from ac_base import CustomStreamHandler
-from ac_base import StreamHandlerWithTemp
 import digitalio #type: ignore
 import board #type: ignore
 import time
@@ -59,10 +58,6 @@ class ac_fans(ac_base):
         self.logger = logging.getLogger(__name__)
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
-
-        self.logger_with_temp = logging.getLogger(__name__ + "with_temp")
-        self.logger_with_temp.addHandler(StreamHandlerWithTemp())
-        self.logger_with_temp.setLevel(logging.INFO)
         
         self.fan_pid0 = PID(Kp=Kp, Ki=Ki, Kd=Kd, setpoint=0, sample_time=None)
         self.fan_pid1 = PID(Kp=Kp, Ki=Ki, Kd=Kd, setpoint=0, sample_time=None)
@@ -73,14 +68,14 @@ class ac_fans(ac_base):
     async def fan_pow_on(self):
         if not pow_en.value :
             pow_en.value = True
-            self.logger_with_temp.info(f'Fans power on.')
+            self.logger.info(f'Fans power on.')
             await asyncio.sleep(POW_ON_DELAY)
 
     async def fan_pow_off(self):
         if pow_en.value :
             pow_en.value = False
             ac_base.fan_rpm = [None, None]
-            self.logger_with_temp.info(f'Fans power off.')
+            self.logger.info(f'Fans power off.')
             await asyncio.sleep(POW_OFF_DELAY)
 
     async def fan_loop(self):

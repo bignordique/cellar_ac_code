@@ -22,6 +22,7 @@ class ac_base():
     rigid_ac_Fault1 = None
     rigid_ac_Fault2 = None
     rigid_ac_Warning1 = None
+    last_status_length = 0
 
     def __init__(self):
         pass
@@ -42,8 +43,13 @@ class ac_base():
         nice_time = f'{str(xst_time.tm_year)[2:]}-{xst_time.tm_mon}-{xst_time.tm_mday} '
         nice_time += f'{xst_time.tm_hour:02d}:{xst_time.tm_min:02d}:{xst_time.tm_sec:02d}'
         return nice_time
-
-
+    
+    def pad_msg(self, msg):
+        msg_length = len(msg)
+        length_diff = ac_base.last_status_length - msg_length
+        padding = "" if length_diff < 0 else " " * length_diff
+        backspace = "\b" * ac_base.last_status_length
+        return backspace, msg + padding
         
 class CustomStreamHandler(logging.Handler, ac_base):
     """Send logging output to a stream (sys.stderr by default) with a custom format."""
@@ -60,8 +66,9 @@ class CustomStreamHandler(logging.Handler, ac_base):
         # record attributes available: name, levelno, levelname, msg
         # The default format is "{timestamp}: {levelname} - {msg}"
         #custom_message = "{}: {} {} - {}".format(record.created, record.name, record.levelname, record.msg)
-        custom_message = f'{self.get_nice_time()}: {record.name} {record.levelname} - {record.msg}'
-        return custom_message + "\n" # Add newline character
+        backspace, padded_message = self.pad_msg(f'{self.get_nice_time()}: {record.name} {record.levelname} - {record.msg}')
+        ac_base.last_status_length = 0
+        return backspace + padded_message + "\n" # Add newline character
 
     def emit(self, record):
         """Generate the message and write it to the stream."""
@@ -73,7 +80,7 @@ class CustomStreamHandler(logging.Handler, ac_base):
         #self.stream.flush()  # stream.flush doesn't work?? 
         pass
 
-class StreamHandlerWithTemp(logging.Handler, ac_base):
+class StreamHandlerStatusLine(logging.Handler, ac_base):
     """Send logging output to a stream (sys.stderr by default) with a custom format."""
 
     def __init__(self, stream=None, level=logging.NOTSET):
@@ -82,14 +89,9 @@ class StreamHandlerWithTemp(logging.Handler, ac_base):
         self.stream = stream if stream is not None else sys.stderr
 
     def format(self, record):
-        """Generate a custom formatted string to log."""
-        # The base format includes timestamp, levelname, and message.
-        # You can customize the entire string here.
-        # record attributes available: name, levelno, levelname, msg
-        # The default format is "{timestamp}: {levelname} - {msg}"
-        #custom_message = "{}: {} {} - {}".format(record.created, record.name, record.levelname, record.msg)
-        custom_message = f'{self.get_nice_time()}: {record.name} {record.levelname} {self.temp:.2f} - {record.msg}'
-        return custom_message + "\n" # Add newline character
+        backspace, padded_message = self.pad_msg(record.msg)
+        ac_base.last_status_length = len(padded_message)
+        return backspace + padded_message
 
     def emit(self, record):
         """Generate the message and write it to the stream."""
