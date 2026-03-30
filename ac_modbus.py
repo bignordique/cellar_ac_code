@@ -53,7 +53,7 @@ COMM_MODE = 0              # Control via RS232
 
 # Spec says "Speed scope: 2000-6000"
 # Speedup Time 30s
-MAX_COMP_RPM = 4500  #Limited by controller power of 150 watts.  Determined expirically.
+MAX_COMP_RPM = 4000  #Limited by controller power of 150 watts.  Determined expirically.
 MIN_COMP_RPM = 2000
 COMP_RPM_RANGE = MAX_COMP_RPM - MIN_COMP_RPM
 

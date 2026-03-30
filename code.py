@@ -131,7 +131,7 @@ class ac_master_cylinder(ac_base):
             if loop_counter % 10 == 0:
                 logger_status_line.info(f'{ac_base.temp:.2f} err: {ac_base.temp_err:.2f}' + 
                             f' pid: {ac_base.pid_demand:.2f} comp: {modbus.read_rpm()}'+
-                            f' fans: {ac_base.fan_rpm} {modbus.compressor_power()}')
+                            f' {modbus.compressor_power()} fans: {ac_base.fan_rpm}')
 
             loop_counter += 1  # seconds from boot, infinite integers
             ac_base.compressor_rpm = modbus.read_rpm()
@@ -147,10 +147,10 @@ if __name__ == "__main__":
     logger_status_line.addHandler(StreamHandlerStatusLine())
     logger_status_line.setLevel(logging.INFO)
 
-#    supervisor.runtime.autoreload = True
-#   logger.info(f'{supervisor.runtime.autoreload=}')
+    supervisor.runtime.autoreload = False
+    logger.info(f'{supervisor.runtime.autoreload=}')
 
-# No i2c, doesn't make sense to continue.
+# No i2c, doesn't make sense to continue. 
     i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
     i2c_list = []
     while not I2C_HTS221_TEMP_HUM in i2c_list:
