@@ -10,12 +10,13 @@
 from umodbus.serial import Serial as ModbusRTUMaster #type: ignore
 from ac_base import ac_base
 from ac_base import CustomStreamHandler
-import board
-import digitalio
+import board #type: ignore
+import digitalio #type: ignore
 import asyncio
-import adafruit_logging as logging
+import adafruit_logging as logging #type: ignore
 import os
 import math
+import time
 
 POW_EN_PIN = board.D5
 TEST_ERR_REGS = False  # Not the greatest test.   Can't really inject errors.
@@ -53,11 +54,12 @@ COMM_MODE = 0              # Control via RS232
 
 # Spec says "Speed scope: 2000-6000"
 # Speedup Time 30s
-MAX_COMP_RPM = 4000  #Limited by controller power of 150 watts.  Determined expirically.
+MAX_COMP_RPM = 4000  #Poor specs.   Apparently, compressor current should be less than 10, or maybe 8 amps.
 MIN_COMP_RPM = 2000
 COMP_RPM_RANGE = MAX_COMP_RPM - MIN_COMP_RPM
 
 DEADBAND = float(os.getenv("COMPRESSOR_DEADBAND", 0.1))
+DUTY_WINDOW = 24 * 3600  # 24 hours in seconds
 
 LOOP_PERIOD = 1
 POW_ON_DELAY = 5
@@ -75,6 +77,8 @@ class ac_modbus(ac_base):
         self.logger.addHandler(CustomStreamHandler())
         self.logger.setLevel(logging.INFO)
 
+        self._power_log = [(time.monotonic(), False)]  # (timestamp, power_on)
+
         self.logger.info(f'AC Modbus initialized.')
 
     async def pow_on(self):
@@ -82,6 +86,7 @@ class ac_modbus(ac_base):
             self.pow_en.value = True
             await asyncio.sleep(POW_ON_DELAY)
             self.pow_valid = True
+            self._power_log.append((time.monotonic(), True))
             self.logger.debug(f'AC Modbus pow_valid is True')
             self.write_single_reg("Control_Mode", COMM_MODE)
             self.write_single_reg("Control", 0)
@@ -90,8 +95,36 @@ class ac_modbus(ac_base):
         if self.pow_valid:
             self.pow_en.value = False
             self.pow_valid = False
+            self._power_log.append((time.monotonic(), False))
             self.logger.debug(f'AC Modbus pow_valid is False')
             await asyncio.sleep(POW_OFF_DELAY)
+
+    def _prune_power_log(self):
+        cutoff = time.monotonic() - DUTY_WINDOW
+        # Keep at most one entry before the cutoff (to establish state at window start)
+        last_before = -1
+        for i, (ts, _) in enumerate(self._power_log):
+            if ts <= cutoff:
+                last_before = i
+        if last_before > 0:
+            del self._power_log[:last_before]
+
+    def duty_cycle(self):
+        """Return percentage of the last 24 hours (or uptime if less) that power was on."""
+        self._prune_power_log()
+        now = time.monotonic()
+        cutoff = now - DUTY_WINDOW
+        total_on = 0.0
+        for i in range(len(self._power_log)):
+            ts, state = self._power_log[i]
+            interval_start = max(ts, cutoff)
+            interval_end = self._power_log[i + 1][0] if i + 1 < len(self._power_log) else now
+            if state and interval_end > interval_start:
+                total_on += interval_end - interval_start
+        elapsed = now - max(self._power_log[0][0], cutoff)
+        if elapsed <= 0:
+            return 0.0
+        return total_on / elapsed * 100
 
     def read_all_regs(self):
         if self.pow_valid:
@@ -153,7 +186,8 @@ class ac_modbus(ac_base):
             output_current = 0
         else:
             output_current = output_current/100
-        return f'volts: {bus_voltage} current: {output_current} pow: {bus_voltage*output_current}'
+        #return f'volts: {bus_voltage} current: {output_current} pow: {bus_voltage*output_current}'
+        return bus_voltage*output_current
 
     async def ac_loop(self):
         self.logger.info(f'Starting ac_loop.')

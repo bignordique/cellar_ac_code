@@ -8,20 +8,22 @@
 
 from ac_base import ac_base
 from ac_base import CustomStreamHandler
-import board
-import digitalio
+import board #type: ignore
+import digitalio #type: ignore
 import asyncio
-from adafruit_wiznet5k.adafruit_wiznet5k import WIZNET5K
-import adafruit_requests
-import adafruit_connection_manager
-import adafruit_logging as logging
-import adafruit_ntp
+from adafruit_wiznet5k.adafruit_wiznet5k import WIZNET5K #type: ignore
+import adafruit_requests #type: ignore
+import adafruit_connection_manager #type: ignore
+import adafruit_logging as logging #type: ignore
+import adafruit_ntp #type: ignore
 import time
 from cedargrove_dst_adjuster import adjust_dst #type: ignore
 import math
+from ac_modbus import ac_modbus
 
 NTP_SERVER_IPADDR = "192.168.1.1"
 POST_TEMP_URL = "http://192.168.1.55/cgi-bin/record_ac_temp.py"
+POST_POW_URL = "http://192.168.1.55/cgi-bin/record_ac_pow.py"
 FAIL_WAIT = 5
 NTP_PERIOD = 60
 POST_PERIOD = 60
@@ -45,6 +47,9 @@ class ac_network(ac_base):
         self.post_logger = logging.getLogger("post_logger")
         self.post_logger.addHandler(CustomStreamHandler())
         self.post_logger.setLevel(logging.INFO)
+        self.pow_logger = logging.getLogger("pow_logger")
+        self.pow_logger.addHandler(CustomStreamHandler())
+        self.pow_logger.setLevel(logging.INFO)
 
         self.ethernet = False
         self.eth_cs = digitalio.DigitalInOut(board.D10)
@@ -115,9 +120,9 @@ class ac_network(ac_base):
 
             while True:
                 self.attempts["post"] += 1
-                post_data = f'{{"time":{self.get_localtime()}, "temp":{ac_base.temp:.1f}}}'
+                post_temp_data = f'{{"time":{self.get_localtime()}, "temp":{ac_base.temp:.1f}}}'
                 try:
-                    with self.requests.post(POST_TEMP_URL, data=post_data) as response:
+                    with self.requests.post(POST_TEMP_URL, data=post_temp_data) as response:
                         if response.status_code != 200:
                             self.post_logger.error (f'Non 200 status , {response.status_code}')
                             self.post_logger.error(f'headers , {response.headers}')
@@ -134,6 +139,39 @@ class ac_network(ac_base):
                     self.post_logger.error(f'Ethernet post error: {e}')
                 await asyncio.sleep(FAIL_WAIT)
                 self.init_eth("post")
+
+    async def post_pow(self):
+        while True:
+            self.pow_logger.debug(f'eth: {self.ethernet} posts: {self.successes["post"]} inits: {self.inits["post"]}')
+            while math.isnan(ac_base.temp): await asyncio.sleep(FAIL_WAIT)
+
+            while not self.ethernet:
+                self.init_eth("post")
+                if not self.ethernet : await asyncio.sleep(FAIL_WAIT)
+
+            while True:
+                self.attempts["post"] += 1
+                post_pow_data = f'{{"time":{self.get_localtime()}, "pow":{ac_base.compressor_pow:.1f}}}'
+                try:
+                    with self.requests.post(POST_POW_URL, data=post_pow_data) as response:
+                        if response.status_code != 200:
+                            self.pow_logger.error (f'Non 200 status , {response.status_code}')
+                            self.pow_logger.error(f'headers , {response.headers}')
+                        else: 
+                            self.successes["post"] += 1
+                            self.pow_logger.debug(f'Post response test: {response.text}')
+                            await asyncio.sleep(POST_PERIOD)
+                            continue
+                except RuntimeError as e: 
+                    self.pow_logger.error (f'RuntimeError: {e}')
+                except adafruit_requests.OutOfRetries as e: 
+                    self.pow_logger.error (f'adafruit_requests.OutOfRetries: {e}')
+                except Exception as e: 
+                    self.pow_logger.error(f'Ethernet post error: {e}')
+                await asyncio.sleep(FAIL_WAIT)
+                self.init_eth("post")
+
+                
 
 
             

@@ -32,7 +32,7 @@ Ki = float(os.getenv("FAN_KI", "0.00"))
 Kd = float(os.getenv("FAN_KD", "0.01"))
 
 FAN_MIN_RPM = os.getenv("FAN_MIN_RPM", 1250)
-FAN_MAX_RPM = os.getenv("FAN_MAX_RPM", 5500) 
+FAN_MAX_RPM = os.getenv("FAN_MAX_RPM", 3000) 
 FAN_PWM_PER_RPM0 = float(os.getenv("FAN_PWM_PER_RPM0", "9.2"))
 FAN_PWM_PER_RPM1 = float(os.getenv("FAN_PWM_PER_RPM1", "9.9"))
 FAN_RPM_RANGE = FAN_MAX_RPM - FAN_MIN_RPM
@@ -149,6 +149,8 @@ class ac_fans(ac_base):
                         pwm_adjust1 = rpm_adjust1 * FAN_PWM_PER_RPM1
                         current_pwm0 = current_pwm0 + int(pwm_adjust0)
                         current_pwm1 = current_pwm1 + int(pwm_adjust1)
+                        current_pwm0 = int(FAN_MIN_RPM * FAN_PWM_PER_RPM0)
+                        current_pwm1 = int(FAN_MIN_RPM * FAN_PWM_PER_RPM1)
                         fan_pwm0.duty_cycle = current_pwm0
                         fan_pwm1.duty_cycle = current_pwm1
                         ac_base.fan_rpm[0] = int(fan_rpm0)

@@ -131,10 +131,12 @@ class ac_master_cylinder(ac_base):
             if loop_counter % 10 == 0:
                 logger_status_line.info(f'{ac_base.temp:.2f} err: {ac_base.temp_err:.2f}' + 
                             f' pid: {ac_base.pid_demand:.2f} comp: {modbus.read_rpm()}'+
-                            f' {modbus.compressor_power()} fans: {ac_base.fan_rpm}')
+                            f' pow: {modbus.compressor_power()} fans: {ac_base.fan_rpm}' +
+                            f' {modbus.duty_cycle():.2f}%')
 
             loop_counter += 1  # seconds from boot, infinite integers
             ac_base.compressor_rpm = modbus.read_rpm()
+            ac_base.compressor_pow = modbus.compressor_power()
             await asyncio.sleep(MC_LOOP_DELAY)
                 
 if __name__ == "__main__":
@@ -195,8 +197,10 @@ if __name__ == "__main__":
         logging.getLogger('ac_network').setLevel(logging.INFO)
         logging.getLogger('ntp_logger').setLevel(logging.INFO)
         logging.getLogger('post_logger').setLevel(logging.INFO)
+        logging.getLogger('pow_logger').setLevel(logging.INFO)
         task_list.append(asyncio.create_task(network.fetch_ntp()))
         task_list.append(asyncio.create_task(network.post_temp()))  
+        task_list.append(asyncio.create_task(network.post_pow())) 
 
     fan = ac_fans(SELF_TEST_MODE)
     logging.getLogger('ac_fans').setLevel(logging.INFO)

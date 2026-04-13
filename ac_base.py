@@ -17,6 +17,7 @@ class ac_base():
     xst_seconds = None
     time_time = None
     compressor_rpm = None
+    compressor_pow = None
     fan_rpm = [None, None]
     pid_demand = None
     rigid_ac_Fault1 = None
