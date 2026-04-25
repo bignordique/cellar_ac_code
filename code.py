@@ -77,7 +77,7 @@ async def run_tasks(task_list):
 
 class ac_master_cylinder(ac_base):
     def __init__(self):
-        self.pid = PID(Kp=-1, Ki=-0.10, Kd=-0.00, setpoint=ac_base.temp_set_point, sample_time = None,
+        self.pid = PID(Kp=-1, Ki=-0.005, Kd=-0.00, setpoint=ac_base.temp_set_point, sample_time = None,
                        output_limits = (-1, 1), starting_output = 0)
 
     async def loop(self):
