@@ -129,14 +129,15 @@ class ac_master_cylinder(ac_base):
                 logger.debug(f'ms/loop: {ms_per_loop} mem_free: {gc.mem_free()}')
 
             if loop_counter % 10 == 0:
+                comp_voltage, comp_current, comp_power = modbus.compressor_power()
                 logger_status_line.info(f'{ac_base.temp:.2f} err: {ac_base.temp_err:.2f}' + 
                             f' pid: {ac_base.pid_demand:.2f} comp: {modbus.read_rpm()}'+
-                            f' pow: {modbus.compressor_power()} fans: {ac_base.fan_rpm}' +
+                            f' pow: {comp_voltage, comp_current, comp_power} fans: {ac_base.fan_rpm}' +
                             f' {modbus.duty_cycle():.2f}%')
 
             loop_counter += 1  # seconds from boot, infinite integers
             ac_base.compressor_rpm = modbus.read_rpm()
-            ac_base.compressor_pow = modbus.compressor_power()
+            ac_base.compressor_pow = modbus.compressor_power()[2]
             await asyncio.sleep(MC_LOOP_DELAY)
                 
 if __name__ == "__main__":
@@ -151,8 +152,9 @@ if __name__ == "__main__":
 
     supervisor.runtime.autoreload = False
     logger.info(f'{supervisor.runtime.autoreload=}')
+    logger.info(f'{SELF_TEST_MODE=}')
 
-# No i2c, doesn't make sense to continue. 
+# No i2c, doesn't make sense to continue.
     i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
     i2c_list = []
     while not I2C_HTS221_TEMP_HUM in i2c_list:

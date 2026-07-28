@@ -54,7 +54,7 @@ COMM_MODE = 0              # Control via RS232
 
 # Spec says "Speed scope: 2000-6000"
 # Speedup Time 30s
-MAX_COMP_RPM = 4300  #Poor specs.   Apparently, compressor current should be less than 10, or maybe 8 amps.
+MAX_COMP_RPM = 5500  #Poor specs.   Apparently, compressor current should be less than 10, or maybe 8 amps.
 MIN_COMP_RPM = 2000
 COMP_RPM_RANGE = MAX_COMP_RPM - MIN_COMP_RPM
 
@@ -187,7 +187,7 @@ class ac_modbus(ac_base):
         else:
             output_current = output_current/100
         #return f'volts: {bus_voltage} current: {output_current} pow: {bus_voltage*output_current}'
-        return bus_voltage*output_current
+        return bus_voltage, output_current, bus_voltage * output_current
 
     async def ac_loop(self):
         self.logger.info(f'Starting ac_loop.')
@@ -219,7 +219,7 @@ class ac_modbus(ac_base):
                 if rigid_ac_Fault2 != 0:
                     self.logger.warning(f'Rigid AC Fault2 is not zero: {rigid_ac_Fault2}')
                     self.logger.debug(self.read_all_regs())
-                rigid_ac_Warning1 = self.read_holding_reg("Warning1")
+                rigid_ac_Warning1 = self.read_holding_reg("Warning1") & 0xffdf #mask overload bit
                 if rigid_ac_Warning1 != 0:
                     self.logger.warning(f'Rigid AC Warning1 is not zero: {rigid_ac_Warning1}')
                     self.logger.info(self.compressor_power())

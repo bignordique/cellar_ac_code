@@ -99,7 +99,7 @@ class AcDisplay(ac_base, AcNonVolatile):
             self.ft = adafruit_focaltouch.Adafruit_FocalTouch(i2c, debug=False)
             self.touch_logger.info(f'Adafruit_FocalTouch connected through i2c.')
         except Exception as e:
-            self.touch_logger.error('FocalTouch not found. \n {e}')
+            self.touch_logger.error(f'FocalTouch not found. \n {e}')
 
 # Make the display context
         self.group = displayio.Group()

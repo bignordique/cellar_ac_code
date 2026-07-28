@@ -20,6 +20,7 @@ import time
 from cedargrove_dst_adjuster import adjust_dst #type: ignore
 import math
 from ac_modbus import ac_modbus
+from lib.umodbus import modbus
 
 NTP_SERVER_IPADDR = "192.168.1.1"
 POST_TEMP_URL = "http://192.168.1.55/cgi-bin/record_ac_temp.py"
