@@ -51,6 +51,7 @@ fan_pwm1 = pwmio.PWMOut(board.A2, frequency = 25000, duty_cycle = 0)
 
 fan_tach0 = countio.Counter(board.A1, edge=countio.Edge.RISE, pull=digitalio.Pull.UP)
 fan_tach1 = countio.Counter(board.A3, edge=countio.Edge.RISE, pull=digitalio.Pull.UP)
+fan_tach_evap = countio.Counter(board.D12, edge=countio.Edge.RISE, pull=digitalio.Pull.UP)
 
 class ac_fans(ac_base):
     def __init__(self, self_test_mode):
@@ -136,11 +137,13 @@ class ac_fans(ac_base):
                         start_timestamp = time.monotonic_ns()
                         fan_tach0.reset()
                         fan_tach1.reset()
+                        fan_tach_evap.reset()
 
                     if pid_set:
                         elapsed_time = (time.monotonic_ns() - start_timestamp)/1e9
                         fan_rpm0 = int(fan_tach0.count*60/(FAN_TACH_CYCLES_PER_ROTATION * elapsed_time))
                         fan_rpm1 = int(fan_tach1.count*60/(FAN_TACH_CYCLES_PER_ROTATION * elapsed_time))
+                        fan_rpm_evap = int(fan_tach_evap.count*60/(FAN_TACH_CYCLES_PER_ROTATION * elapsed_time))
                         rpm_error0 = target_rpm - fan_rpm0
                         rpm_error1 = target_rpm - fan_rpm1
                         rpm_adjust0 = self.fan_pid0(fan_rpm0)
@@ -155,6 +158,7 @@ class ac_fans(ac_base):
                         fan_pwm1.duty_cycle = current_pwm1
                         ac_base.fan_rpm[0] = int(fan_rpm0)
                         ac_base.fan_rpm[1] = int(fan_rpm1)
+                        ac_base.fan_rpm[2] = int(fan_rpm_evap)
                         self.logger.debug(f'RPM: {fan_rpm0, fan_rpm1}, target: {target_rpm}, error: {rpm_error0, rpm_error1} adjust: {rpm_adjust0, rpm_adjust1}')
                     fan_pid_base += 1 
 

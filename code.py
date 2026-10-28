@@ -128,12 +128,18 @@ class ac_master_cylinder(ac_base):
             if loop_counter % 5 == 0:      
                 logger.debug(f'ms/loop: {ms_per_loop} mem_free: {gc.mem_free()}')
 
-            if loop_counter % 10 == 0:
+            if loop_counter % 1 == 0:
                 comp_voltage, comp_current, comp_power = modbus.compressor_power()
                 logger_status_line.info(f'{ac_base.temp:.2f} err: {ac_base.temp_err:.2f}' + 
                             f' pid: {ac_base.pid_demand:.2f} comp: {modbus.read_rpm()}'+
                             f' pow: {comp_voltage, comp_current, comp_power} fans: {ac_base.fan_rpm}' +
                             f' {modbus.duty_cycle():.2f}%')
+
+            if loop_counter % (5*60) == 0:
+                ac_base.ac_rest = False
+
+            if loop_counter % (60*60)== 0 and loop_counter != 0:
+                ac_base.ac_rest = True
 
             loop_counter += 1  # seconds from boot, infinite integers
             ac_base.compressor_rpm = modbus.read_rpm()

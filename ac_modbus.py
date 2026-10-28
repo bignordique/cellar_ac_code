@@ -166,7 +166,7 @@ class ac_modbus(ac_base):
         return False
     
     async def write_rpm_set(self, rpm_value):
-        if rpm_value == 0:
+        if rpm_value == 0 or ac_base.ac_rest:
             self.write_single_reg("Control", 0)
         else:
             self.write_single_reg("RPM_set", rpm_value)
