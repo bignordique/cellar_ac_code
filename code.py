@@ -138,7 +138,7 @@ class ac_master_cylinder(ac_base):
             if loop_counter % (5*60) == 0:
                 ac_base.ac_rest = False
 
-            if loop_counter % (60*60)== 0 and loop_counter != 0:
+            if loop_counter % (120*60)== 0 and loop_counter != 0:
                 ac_base.ac_rest = True
 
             loop_counter += 1  # seconds from boot, infinite integers
