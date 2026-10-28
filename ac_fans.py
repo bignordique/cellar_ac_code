@@ -75,7 +75,7 @@ class ac_fans(ac_base):
     async def fan_pow_off(self):
         if pow_en.value :
             pow_en.value = False
-            ac_base.fan_rpm = [None, None]
+            ac_base.fan_rpm = [None, None, None]
             self.logger.info(f'Fans power off.')
             await asyncio.sleep(POW_OFF_DELAY)
 
